@@ -39,7 +39,6 @@ See the [[examples]] folder for two examples of tree partitioning.
 
 * TODOS
 ** TODO Cases
-- [ ] Do we need to use singletons? Our case will be changed adaptively I think.
 ** TODO Partitioning
 ** TODO Tree
 ** TODO Full MILP
