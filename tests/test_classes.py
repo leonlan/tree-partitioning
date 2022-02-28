@@ -1,9 +1,11 @@
 #!/usr/bin/env ipython
 from tree_partitioning.classes import Case
 
+from pathlib import Path
+
 
 class TestCaseNoMerge:
-    case = Case("../../data/pglib_opf_case5_pjm.mat/", merge_lines=False)
+    case = Case(Path("data/pglib_opf_case5_pjm.mat"), merge_lines=False)
 
     def test_net_and_netdict(self):
         """

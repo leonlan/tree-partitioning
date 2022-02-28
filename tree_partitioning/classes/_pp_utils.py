@@ -10,7 +10,7 @@ def _load_pp_case(
 ):
     """Loads the selected test case.
 
-    - opf_flag (bool): Run an initial DCOPF instead of regular PF
+    - opf_init (bool): Run an initial DCOPF instead of regular PF
     - merge_lines (bool): Returns all items except net with merged lines
 
     """
@@ -20,18 +20,18 @@ def _load_pp_case(
     # Run (O)PF or change ref bus first
     if ac:
         try:
-            pp.runopp(net) if opf_flag else pp.runpp(net)
+            pp.runopp(net) if opf_init else pp.runpp(net)
         except UserWarning:
             ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
             _change_ref_bus(net, ref_gen, ext_grid_p=0)
-            pp.runopp(net) if opf_flag else pp.runpp(net)
+            pp.runopp(net) if opf_init else pp.runpp(net)
     else:
         try:
-            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
+            pp.rundcopp(net) if opf_init else pp.rundcpp(net)
         except UserWarning:
             ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
             _change_ref_bus(net, ref_gen, ext_grid_p=0)
-            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
+            pp.rundcopp(net) if opf_init else pp.rundcpp(net)
 
     dict_line = {i: i for i in range(len(net.line))}
     dict_trafo = {i: len(net.line) + i for i in range(len(net.trafo))}
@@ -162,176 +162,180 @@ def _load_pp_case(
 
     return net, dfnetwork, df_bus, igg, G
 
-    ########################################################################
-    # Helper functions
 
-    def _combine_line_trafo(cols1, cols2=None):
-        """Combines the results of line and transformer dataframes."""
-        if not cols2:
-            cols2 = cols1
-        res = net.res_line[cols1].rename(index=dict_line)
-        res = res.combine_first(net.res_trafo[cols2].rename(index=dict_trafo))
-        return res
+"""
+Helper functions
+"""
 
-    def _compute_susceptances(net, df, method):
-        """Compute susceptances of the network. Can use two different methods which
-        are similar but yield slightly different resuls.
 
-        - net: pandapower network
-        - df: dataframe of the network
-        - susceptance_method: "pypower" or "pandapower" method for calculating b
-        """
+def _combine_line_trafo(cols1, cols2=None):
+    """Combines the results of line and transformer dataframes."""
+    if not cols2:
+        cols2 = cols1
+    res = net.res_line[cols1].rename(index=dict_line)
+    res = res.combine_first(net.res_trafo[cols2].rename(index=dict_trafo))
+    return res
 
-        # Obtain the susceptances using either pandapower of pypower calculations
-        if method == "pandapower":
-            # Line values
-            b_lines = (
-                np.array(
-                    1
-                    / (
-                        net.line["x_ohm_per_km"]
-                        * net.line["length_km"]
-                        * net.sn_mva
-                        / net.line["parallel"]
-                    )
+
+def _compute_susceptances(net, df, method):
+    """Compute susceptances of the network. Can use two different methods which
+    are similar but yield slightly different resuls.
+
+    - net: pandapower network
+    - df: dataframe of the network
+    - susceptance_method: "pypower" or "pandapower" method for calculating b
+    """
+
+    # Obtain the susceptances using either pandapower of pypower calculations
+    if method == "pandapower":
+        # Line values
+        b_lines = (
+            np.array(
+                1
+                / (
+                    net.line["x_ohm_per_km"]
+                    * net.line["length_km"]
+                    * net.sn_mva
+                    / net.line["parallel"]
                 )
-                * net.bus.loc[net.line.from_bus.values, "vn_kv"].values ** 2
             )
-
-            # Transformer susceptances
-            zk = net.trafo["vk_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
-            rk = net.trafo["vkr_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
-            xk = np.array(zk * zk - rk * rk) ** (1 / 2)
-
-            # Fill nans in tap_step_percent with 0
-            net_trafo_tap_step_percent = net.trafo["tap_step_percent"].fillna(0)
-            tapratiok = np.array(1 - net_trafo_tap_step_percent / 100)
-            b_trafo = 1 / (xk * tapratiok)
-
-            b = np.append(b_lines, b_trafo)
-
-        elif method == "pypower":
-            ### Convert to pypower format
-            from pandapower.pd2ppc import (
-                _pd2ppc,
-                _calc_pq_elements_and_add_on_ppc,
-                _ppc2ppci,
-            )
-
-            ppc, ppci = _pd2ppc(net)
-
-            #### Function: _rund_dc_pf(ppci)
-            from pandapower.pypower.idx_bus import VA, GS
-            from pandapower.pf.ppci_variables import (
-                _get_pf_variables_from_ppci,
-                _store_results_from_pf_in_ppci,
-            )
-            from pandapower.pypower.dcpf import dcpf
-            from pandapower.pypower.makeBdc import makeBdc
-            from numpy import pi, zeros, real, bincount
-
-            (
-                baseMVA,
-                bus,
-                gen,
-                branch,
-                ref,
-                pv,
-                pq,
-                on,
-                gbus,
-                _,
-                refgen,
-            ) = _get_pf_variables_from_ppci(ppci)
-
-            #### Function: makeBdc
-            from pandapower.pypower.idx_brch import (
-                F_BUS,
-                T_BUS,
-                BR_X,
-                TAP,
-                SHIFT,
-                BR_STATUS,
-            )
-
-            stat = branch[:, BR_STATUS]  # ones at in-service branches
-            b = np.real(stat / branch[:, BR_X])  # series susceptance
-
-        elif method == "unweighted":
-            b = 1
-
-        return b
-
-    def _change_ref_bus(net, ref_bus_idx, ext_grid_p=0):  # Copied from pandapower
-        """
-        This function changes the current reference bus / buses, declared by
-        net.ext_grid.bus towards the given 'ref_bus_idx'. If ext_grid_p is a list,
-        it must be in the same order as net.ext_grid.index.
-        """
-        # Cast ref_bus_idx and ext_grid_p as list
-        if not isinstance(ref_bus_idx, list):
-            ref_bus_idx = [ref_bus_idx]
-        if not isinstance(ext_grid_p, list):
-            ext_grid_p = [ext_grid_p]
-        for i in ref_bus_idx:
-            if i not in net.gen.bus.values and i not in net.ext_grid.bus.values:
-                raise ValueError(
-                    "Index %i is not in net.gen.bus or net.ext_grid.bus." % i
-                )
-
-        # Determine indices of ext_grid and gen connected to ref_bus_idx
-        gen_idx = net.gen.index[net.gen.bus.isin(ref_bus_idx)]
-        ext_grid_idx = net.ext_grid.index[~net.ext_grid.bus.isin(ref_bus_idx)]
-        # old ext_grid -> gen
-        j = 0
-        for i in ext_grid_idx:
-            ext_grid_data = net.ext_grid.loc[i]
-            net.ext_grid.drop(i, inplace=True)
-            pp.create_gen(
-                net,
-                ext_grid_data.bus,
-                ext_grid_p[j],
-                vm_pu=ext_grid_data.vm_pu,
-                controllable=True,
-                min_q_mvar=ext_grid_data.min_q_mvar,
-                max_q_mvar=ext_grid_data.max_q_mvar,
-                min_p_mw=ext_grid_data.min_p_mw,
-                max_p_mw=ext_grid_data.max_p_mw,
-            )
-            j += 1
-        # old gen at ref_bus -> ext_grid (and sgen)
-        for i in gen_idx:
-            gen_data = net.gen.loc[i]
-            net.gen.drop(i, inplace=True)
-            if gen_data.bus not in net.ext_grid.bus.values:
-                pp.create_ext_grid(
-                    net,
-                    gen_data.bus,
-                    vm_pu=gen_data.vm_pu,
-                    va_degree=0.0,
-                    min_q_mvar=gen_data.min_q_mvar,
-                    max_q_mvar=gen_data.max_q_mvar,
-                    min_p_mw=gen_data.min_p_mw,
-                    max_p_mw=gen_data.max_p_mw,
-                )
-            else:
-                pp.create_sgen(
-                    net,
-                    gen_data.bus,
-                    p_mw=gen_data.p_mw,
-                    min_q_mvar=gen_data.min_q_mvar,
-                    max_q_mvar=gen_data.max_q_mvar,
-                    min_p_mw=gen_data.min_p_mw,
-                    max_p_mw=gen_data.max_p_mw,
-                )
-
-    def _compute_capacities(net, df):
-        """Compute line and trafo capacities."""
-        c_line = (
-            net.line.max_i_ka
-            * net.bus.loc[net.line.from_bus.values, "vn_kv"].values
-            / (np.sqrt(3) / 3)
+            * net.bus.loc[net.line.from_bus.values, "vn_kv"].values ** 2
         )
-        c_trafo = net.trafo.sn_mva.values
-        c = np.append(c_line, c_trafo)
-        return c
+
+        # Transformer susceptances
+        zk = net.trafo["vk_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
+        rk = net.trafo["vkr_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
+        xk = np.array(zk * zk - rk * rk) ** (1 / 2)
+
+        # Fill nans in tap_step_percent with 0
+        net_trafo_tap_step_percent = net.trafo["tap_step_percent"].fillna(0)
+        tapratiok = np.array(1 - net_trafo_tap_step_percent / 100)
+        b_trafo = 1 / (xk * tapratiok)
+
+        b = np.append(b_lines, b_trafo)
+
+    elif method == "pypower":
+        ### Convert to pypower format
+        from pandapower.pd2ppc import (
+            _pd2ppc,
+            _calc_pq_elements_and_add_on_ppc,
+            _ppc2ppci,
+        )
+
+        ppc, ppci = _pd2ppc(net)
+
+        #### Function: _rund_dc_pf(ppci)
+        from pandapower.pypower.idx_bus import VA, GS
+        from pandapower.pf.ppci_variables import (
+            _get_pf_variables_from_ppci,
+            _store_results_from_pf_in_ppci,
+        )
+        from pandapower.pypower.dcpf import dcpf
+        from pandapower.pypower.makeBdc import makeBdc
+        from numpy import pi, zeros, real, bincount
+
+        (
+            baseMVA,
+            bus,
+            gen,
+            branch,
+            ref,
+            pv,
+            pq,
+            on,
+            gbus,
+            _,
+            refgen,
+        ) = _get_pf_variables_from_ppci(ppci)
+
+        #### Function: makeBdc
+        from pandapower.pypower.idx_brch import (
+            F_BUS,
+            T_BUS,
+            BR_X,
+            TAP,
+            SHIFT,
+            BR_STATUS,
+        )
+
+        stat = branch[:, BR_STATUS]  # ones at in-service branches
+        b = np.real(stat / branch[:, BR_X])  # series susceptance
+
+    elif method == "unweighted":
+        b = 1
+
+    return b
+
+
+def _change_ref_bus(net, ref_bus_idx, ext_grid_p=0):  # Copied from pandapower
+    """
+    This function changes the current reference bus / buses, declared by
+    net.ext_grid.bus towards the given 'ref_bus_idx'. If ext_grid_p is a list,
+    it must be in the same order as net.ext_grid.index.
+    """
+    # Cast ref_bus_idx and ext_grid_p as list
+    if not isinstance(ref_bus_idx, list):
+        ref_bus_idx = [ref_bus_idx]
+    if not isinstance(ext_grid_p, list):
+        ext_grid_p = [ext_grid_p]
+    for i in ref_bus_idx:
+        if i not in net.gen.bus.values and i not in net.ext_grid.bus.values:
+            raise ValueError("Index %i is not in net.gen.bus or net.ext_grid.bus." % i)
+
+    # Determine indices of ext_grid and gen connected to ref_bus_idx
+    gen_idx = net.gen.index[net.gen.bus.isin(ref_bus_idx)]
+    ext_grid_idx = net.ext_grid.index[~net.ext_grid.bus.isin(ref_bus_idx)]
+    # old ext_grid -> gen
+    j = 0
+    for i in ext_grid_idx:
+        ext_grid_data = net.ext_grid.loc[i]
+        net.ext_grid.drop(i, inplace=True)
+        pp.create_gen(
+            net,
+            ext_grid_data.bus,
+            ext_grid_p[j],
+            vm_pu=ext_grid_data.vm_pu,
+            controllable=True,
+            min_q_mvar=ext_grid_data.min_q_mvar,
+            max_q_mvar=ext_grid_data.max_q_mvar,
+            min_p_mw=ext_grid_data.min_p_mw,
+            max_p_mw=ext_grid_data.max_p_mw,
+        )
+        j += 1
+    # old gen at ref_bus -> ext_grid (and sgen)
+    for i in gen_idx:
+        gen_data = net.gen.loc[i]
+        net.gen.drop(i, inplace=True)
+        if gen_data.bus not in net.ext_grid.bus.values:
+            pp.create_ext_grid(
+                net,
+                gen_data.bus,
+                vm_pu=gen_data.vm_pu,
+                va_degree=0.0,
+                min_q_mvar=gen_data.min_q_mvar,
+                max_q_mvar=gen_data.max_q_mvar,
+                min_p_mw=gen_data.min_p_mw,
+                max_p_mw=gen_data.max_p_mw,
+            )
+        else:
+            pp.create_sgen(
+                net,
+                gen_data.bus,
+                p_mw=gen_data.p_mw,
+                min_q_mvar=gen_data.min_q_mvar,
+                max_q_mvar=gen_data.max_q_mvar,
+                min_p_mw=gen_data.min_p_mw,
+                max_p_mw=gen_data.max_p_mw,
+            )
+
+
+def _compute_capacities(net, df):
+    """Compute line and trafo capacities."""
+    c_line = (
+        net.line.max_i_ka
+        * net.bus.loc[net.line.from_bus.values, "vn_kv"].values
+        / (np.sqrt(3) / 3)
+    )
+    c_trafo = net.trafo.sn_mva.values
+    c = np.append(c_line, c_trafo)
+    return c
