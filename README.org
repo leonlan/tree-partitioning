@@ -1,0 +1,48 @@
+#+TITLE: Tree partitioning
+The library contains implementations of /tree partitioning/ algorithms for power system networks, turning the network into clusters that are connected in a tree-like manner.
+
+#+html: <p align="center"><img width=600 height=450 src="img/IEEE-73.jpg"/></p>
+
+This repository contains a Python implementation of various tree partitioning algorithms originally presented in the following two papers:
+- L. Lan and A. Zocca, “Refining bridge-block decompositions through two-stage and recursive tree partitioning,” arXiv:2110.06998 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.06998
+- L. Lan and A. Zocca, “An MILP-based approach to tree partitioning with minimal power flow disruption and generator coherency constraints,” arXiv:2110.07000 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.07000
+
+
+* Installation
+** Dependencies
+Install all Python packages using the following command:
+#+begin_src
+pip install -r requirements.txt
+#+end_src
+** DACSTP library
+The Steiner Tree problem is solved using the [[https://github.com/mluipersbeck/dapcstp][dapcstp]] library. For the Python code to work, you must be able to run the example given in the corresponding library. The following shell command installs the required Boost dependency:
+#+begin_src shell
+sudo apt-get install libboost-all-dev
+#+end_src
+If this doesn't work, you need to build the solver yourself using =make= and then copy it in the =st/stp/solver/= directory.
+
+* Overview
+A brief overview of the code:
+- =data/= :: Matlab files of power network test cases from the =PGLib-OPF= library.
+- =examples/= :: Example usage of the code.
+- =st/= :: Forked code from =dapcstp= library to solve the Steiner tree problem.
+- =case.py= :: Contains the main class =Case=. It takes as input a =.mat= power network file, which is then converted into different objects, including a =networkx= graph, an =igraph= and a dataframe.
+- =bbd.py= :: Contains the code for the single-stage full MILP formulation used to tree partition networks with minimal power flow disruption.
+- =bridge_block_refinement.py= :: Legacy functions from Zocca et al. (2020). Included in the repo for comparison in numerical results.
+- =gci.py= :: Functions to identify the coherent generator groups of a power network based on slow coherency grouping.
+- =obi.py= :: Functions to solve the Optimal Bridge-blocks Identification problem (i.e., clustering stage). Includes implementations of (constrained) spectral clustering algorithms for minimizing network modularity and expansion constant.
+- =osp.py=  :: Functions to solve the Optimal Bridge Selection (OBS) problem (i.e., tree stage), which was originally called the Optimal Switching Problem (OSP).
+- =utils.py= :: Some helper functions.
+
+* Examples
+See the [[examples]] folder for two examples of tree partitioning.
+
+* TODOS
+** TODO Cases
+- [ ] Do we need to use singletons? Our case will be changed adaptively I think.
+** TODO Partitioning
+** TODO Tree
+** TODO Full MILP
+** TODO cascading failure
+** TODO GCI
+** TODO ST

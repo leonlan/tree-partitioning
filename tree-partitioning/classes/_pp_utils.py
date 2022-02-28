@@ -1,0 +1,340 @@
+#!/usr/bin/env ipython
+def load_case(
+    case,
+    merge_lines=False,
+    opf_flag=False,
+    ac=False,
+    pn_case=False,
+    susceptance_method="pypower",
+):
+    """Loads the selected test case.
+
+    - opf_flag (bool): Run an initial DCOPF instead of regular PF
+    - merge_lines (bool): Returns all items except net with merged lines
+
+    """
+
+    ########################################################################
+    # Helper functions
+
+    def _combine_line_trafo(cols1, cols2=None):
+        """Combines the results of line and transformer dataframes."""
+        if not cols2:
+            cols2 = cols1
+        res = net.res_line[cols1].rename(index=dict_line)
+        res = res.combine_first(net.res_trafo[cols2].rename(index=dict_trafo))
+        return res
+
+    def _compute_susceptances(net, df, method):
+        """Compute susceptances of the network. Can use two different methods which
+        are similar but yield slightly different resuls.
+
+        - net: pandapower network
+        - df: dataframe of the network
+        - susceptance_method: "pypower" or "pandapower" method for calculating b
+        """
+
+        # Obtain the susceptances using either pandapower of pypower calculations
+        if method == "pandapower":
+            # Line values
+            b_lines = (
+                np.array(
+                    1
+                    / (
+                        net.line["x_ohm_per_km"]
+                        * net.line["length_km"]
+                        * net.sn_mva
+                        / net.line["parallel"]
+                    )
+                )
+                * net.bus.loc[net.line.from_bus.values, "vn_kv"].values ** 2
+            )
+
+            # Transformer susceptances
+            zk = net.trafo["vk_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
+            rk = net.trafo["vkr_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
+            xk = np.array(zk * zk - rk * rk) ** (1 / 2)
+
+            # Fill nans in tap_step_percent with 0
+            net_trafo_tap_step_percent = net.trafo["tap_step_percent"].fillna(0)
+            tapratiok = np.array(1 - net_trafo_tap_step_percent / 100)
+            b_trafo = 1 / (xk * tapratiok)
+
+            b = np.append(b_lines, b_trafo)
+
+        elif method == "pypower":
+            ### Convert to pypower format
+            from pandapower.pd2ppc import (
+                _pd2ppc,
+                _calc_pq_elements_and_add_on_ppc,
+                _ppc2ppci,
+            )
+
+            ppc, ppci = _pd2ppc(net)
+
+            #### Function: _rund_dc_pf(ppci)
+            from pandapower.pypower.idx_bus import VA, GS
+            from pandapower.pf.ppci_variables import (
+                _get_pf_variables_from_ppci,
+                _store_results_from_pf_in_ppci,
+            )
+            from pandapower.pypower.dcpf import dcpf
+            from pandapower.pypower.makeBdc import makeBdc
+            from numpy import pi, zeros, real, bincount
+
+            (
+                baseMVA,
+                bus,
+                gen,
+                branch,
+                ref,
+                pv,
+                pq,
+                on,
+                gbus,
+                _,
+                refgen,
+            ) = _get_pf_variables_from_ppci(ppci)
+
+            #### Function: makeBdc
+            from pandapower.pypower.idx_brch import (
+                F_BUS,
+                T_BUS,
+                BR_X,
+                TAP,
+                SHIFT,
+                BR_STATUS,
+            )
+
+            stat = branch[:, BR_STATUS]  # ones at in-service branches
+            b = np.real(stat / branch[:, BR_X])  # series susceptance
+
+        elif method == "unweighted":
+            b = 1
+
+        return b
+
+    def _change_ref_bus(net, ref_bus_idx, ext_grid_p=0):  # Copied from pandapower
+        """
+        This function changes the current reference bus / buses, declared by
+        net.ext_grid.bus towards the given 'ref_bus_idx'. If ext_grid_p is a list,
+        it must be in the same order as net.ext_grid.index.
+        """
+        # Cast ref_bus_idx and ext_grid_p as list
+        if not isinstance(ref_bus_idx, list):
+            ref_bus_idx = [ref_bus_idx]
+        if not isinstance(ext_grid_p, list):
+            ext_grid_p = [ext_grid_p]
+        for i in ref_bus_idx:
+            if i not in net.gen.bus.values and i not in net.ext_grid.bus.values:
+                raise ValueError(
+                    "Index %i is not in net.gen.bus or net.ext_grid.bus." % i
+                )
+
+        # Determine indices of ext_grid and gen connected to ref_bus_idx
+        gen_idx = net.gen.index[net.gen.bus.isin(ref_bus_idx)]
+        ext_grid_idx = net.ext_grid.index[~net.ext_grid.bus.isin(ref_bus_idx)]
+        # old ext_grid -> gen
+        j = 0
+        for i in ext_grid_idx:
+            ext_grid_data = net.ext_grid.loc[i]
+            net.ext_grid.drop(i, inplace=True)
+            pp.create_gen(
+                net,
+                ext_grid_data.bus,
+                ext_grid_p[j],
+                vm_pu=ext_grid_data.vm_pu,
+                controllable=True,
+                min_q_mvar=ext_grid_data.min_q_mvar,
+                max_q_mvar=ext_grid_data.max_q_mvar,
+                min_p_mw=ext_grid_data.min_p_mw,
+                max_p_mw=ext_grid_data.max_p_mw,
+            )
+            j += 1
+        # old gen at ref_bus -> ext_grid (and sgen)
+        for i in gen_idx:
+            gen_data = net.gen.loc[i]
+            net.gen.drop(i, inplace=True)
+            if gen_data.bus not in net.ext_grid.bus.values:
+                pp.create_ext_grid(
+                    net,
+                    gen_data.bus,
+                    vm_pu=gen_data.vm_pu,
+                    va_degree=0.0,
+                    min_q_mvar=gen_data.min_q_mvar,
+                    max_q_mvar=gen_data.max_q_mvar,
+                    min_p_mw=gen_data.min_p_mw,
+                    max_p_mw=gen_data.max_p_mw,
+                )
+            else:
+                pp.create_sgen(
+                    net,
+                    gen_data.bus,
+                    p_mw=gen_data.p_mw,
+                    min_q_mvar=gen_data.min_q_mvar,
+                    max_q_mvar=gen_data.max_q_mvar,
+                    min_p_mw=gen_data.min_p_mw,
+                    max_p_mw=gen_data.max_p_mw,
+                )
+
+    def _compute_capacities(net, df):
+        """Compute line and trafo capacities."""
+        c_line = (
+            net.line.max_i_ka
+            * net.bus.loc[net.line.from_bus.values, "vn_kv"].values
+            / (np.sqrt(3) / 3)
+        )
+        c_trafo = net.trafo.sn_mva.values
+        c = np.append(c_line, c_trafo)
+        return c
+
+    ########################################################################
+    if pn_case:
+        net = case.pn
+    else:
+        net = pc.from_mpc(str(case.path))
+
+    # Run (O)PF or change ref bus first
+    if ac:
+        try:
+            pp.runopp(net) if opf_flag else pp.runpp(net)
+        except UserWarning:
+            ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
+            _change_ref_bus(net, ref_gen, ext_grid_p=0)
+            pp.runopp(net) if opf_flag else pp.runpp(net)
+    else:
+        try:
+            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
+        except UserWarning:
+            ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
+            _change_ref_bus(net, ref_gen, ext_grid_p=0)
+            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
+
+    dict_line = {i: i for i in range(len(net.line))}
+    dict_trafo = {i: len(net.line) + i for i in range(len(net.trafo))}
+
+    # Change load/generator power injections setpoints according to OPF
+    net.load["p_mw"] = net.res_load["p_mw"]
+    net.gen["p_mw"] = net.res_gen["p_mw"]
+    bus_load = net.res_bus.p_mw
+
+    # Change edge names to L#/T#
+    net.line["name"] = [f"L{idx}" for idx in net.line.index]
+    net.trafo["name"] = [f"T{idx}" for idx in net.trafo.index]
+
+    # Create df of the network (lines)
+    dfnetwork = net.line[["from_bus", "to_bus", "in_service", "name"]].rename(
+        index=dict_line
+    )
+    dfnetwork = dfnetwork.combine_first(
+        net.trafo[["hv_bus", "lv_bus", "in_service", "name"]].rename(
+            columns={"hv_bus": "from_bus", "lv_bus": "to_bus"}, index=dict_trafo
+        )
+    )
+    dfnetwork["from_bus"] = dfnetwork["from_bus"].astype(int)
+    dfnetwork["to_bus"] = dfnetwork["to_bus"].astype(int)
+    dfnetwork["weight"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
+    dfnetwork["f"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
+    dfnetwork["loading_percent"] = _combine_line_trafo("loading_percent")
+    dfnetwork["type"] = dfnetwork["name"].apply(lambda x: x[0])
+    dfnetwork["index_by_type"] = dfnetwork["name"].apply(lambda x: int(x[1:]))
+    dfnetwork["edge_index"] = dfnetwork.index
+    dfnetwork["b"] = _compute_susceptances(net, dfnetwork, method=susceptance_method)
+    dfnetwork["c"] = _compute_capacities(net, dfnetwork)
+    dfnetwork["edge_id"] = tuple(zip(dfnetwork["from_bus"], dfnetwork["to_bus"]))
+    dfnetwork.drop(dfnetwork[dfnetwork["in_service"] == False].index, inplace=True)
+
+    # Create df of the buses
+    df_bus = net.res_bus
+    df_bus.loc[net.gen.bus, "p_gen"] = -net.res_gen["p_mw"].values
+    df_bus.loc[net.load.bus, "p_load"] = net.res_load["p_mw"].values
+    df_bus.loc[net.ext_grid.bus, "p_ext_grid"] = -net.res_ext_grid["p_mw"].values
+    if hasattr(net, "sgen"):
+        # There could be multiple generators to one bus
+        sgen_bus_idx = net.sgen.bus.unique()
+        temp_df_bus = pd.concat([net.sgen["bus"], net.res_sgen["p_mw"]], axis=1)
+        p_sgen = temp_df_bus.groupby(["bus"]).sum()["p_mw"]
+        df_bus.loc[sgen_bus_idx, "p_sgen"] = -p_sgen
+
+    # Consider merging lines
+    if merge_lines:
+        dfnetwork = (
+            dfnetwork.groupby(["from_bus", "to_bus"])
+            .agg(
+                {
+                    "in_service": lambda x: list(x)[0],
+                    "name": lambda x: list(x)[0],
+                    "f": "sum",
+                    "weight": "sum",
+                    "loading_percent": "sum",
+                    "edge_index": lambda x: list(x),
+                    "type": lambda x: list(x)[0],
+                    "index_by_type": lambda x: list(x),
+                    "b": "sum",
+                    "c": "sum",
+                    "edge_id": lambda x: list(x)[0],
+                }
+            )
+            .reset_index()
+        )
+        dfnetwork["loading_percent"] = dfnetwork["weight"] / dfnetwork["c"] * 100
+
+    # Create igraph of the network
+    igg = ig.Graph.TupleList(
+        dfnetwork.itertuples(index=False),
+        directed=False,
+        vertex_name_attr="name",
+        weights=False,
+        edge_attrs=[
+            "in_service",
+            "name",
+            "f",
+            "weight",
+            "loading_percent",
+            "type",
+            "index_by_type",
+            "edge_index",
+            "b",
+            "c",
+            "edge_id",
+        ],
+    )
+    igg.vs["community"] = [0] * (igg.vcount())
+    igg.vs["p"] = bus_load
+
+    # Create networkx graph of the network
+    if merge_lines:
+        graph_constructor = nx.Graph()
+    else:
+        graph_constructor = nx.MultiGraph()
+    G = nx.from_pandas_edgelist(
+        dfnetwork,
+        source="from_bus",
+        target="to_bus",
+        edge_attr=[
+            "in_service",
+            "name",
+            "f",
+            "weight",
+            "loading_percent",
+            "type",
+            "index_by_type",
+            "edge_index",
+            "b",
+            "c",
+            "edge_id",
+        ],
+        create_using=graph_constructor
+        # edge_key = 'name', # TODO: add this if we consider multigraphs
+    )
+
+    nx.set_node_attributes(G, 0, name="community")
+    nx.set_node_attributes(G, bus_load, name="p")
+    # nx.set_node_attributes(G, igg.vs["name"], name="p")
+
+    # Multigraph nx_id
+    temp_d = sorted([(G.get_edge_data(*e)["edge_index"], e) for e in G.edges])
+    nx_id = [x[-1] for x in temp_d]
+    dfnetwork["nx_id"] = nx_id
+
+    return net, dfnetwork, df_bus, igg, G
