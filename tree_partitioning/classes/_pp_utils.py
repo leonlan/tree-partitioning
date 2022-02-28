@@ -1,11 +1,12 @@
 #!/usr/bin/env ipython
-def load_case(
-    case,
-    merge_lines=False,
-    opf_flag=False,
-    ac=False,
-    pn_case=False,
-    susceptance_method="pypower",
+import numpy as np
+import pandapower as pp
+import pandapower.converter as pc
+import pandapower.networks as pn
+
+
+def _load_pp_case(
+    path, merge_lines, opf_init, ac,
 ):
     """Loads the selected test case.
 
@@ -13,6 +14,153 @@ def load_case(
     - merge_lines (bool): Returns all items except net with merged lines
 
     """
+
+    net = pc.from_mpc(path)
+
+    # Run (O)PF or change ref bus first
+    if ac:
+        try:
+            pp.runopp(net) if opf_flag else pp.runpp(net)
+        except UserWarning:
+            ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
+            _change_ref_bus(net, ref_gen, ext_grid_p=0)
+            pp.runopp(net) if opf_flag else pp.runpp(net)
+    else:
+        try:
+            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
+        except UserWarning:
+            ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
+            _change_ref_bus(net, ref_gen, ext_grid_p=0)
+            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
+
+    dict_line = {i: i for i in range(len(net.line))}
+    dict_trafo = {i: len(net.line) + i for i in range(len(net.trafo))}
+
+    # Change load/generator power injections setpoints according to OPF
+    net.load["p_mw"] = net.res_load["p_mw"]
+    net.gen["p_mw"] = net.res_gen["p_mw"]
+    bus_load = net.res_bus.p_mw
+
+    # Change edge names to L#/T#
+    net.line["name"] = [f"L{idx}" for idx in net.line.index]
+    net.trafo["name"] = [f"T{idx}" for idx in net.trafo.index]
+
+    # Create df of the network (lines)
+    dfnetwork = net.line[["from_bus", "to_bus", "in_service", "name"]].rename(
+        index=dict_line
+    )
+    dfnetwork = dfnetwork.combine_first(
+        net.trafo[["hv_bus", "lv_bus", "in_service", "name"]].rename(
+            columns={"hv_bus": "from_bus", "lv_bus": "to_bus"}, index=dict_trafo
+        )
+    )
+    dfnetwork["from_bus"] = dfnetwork["from_bus"].astype(int)
+    dfnetwork["to_bus"] = dfnetwork["to_bus"].astype(int)
+    dfnetwork["weight"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
+    dfnetwork["f"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
+    dfnetwork["loading_percent"] = _combine_line_trafo("loading_percent")
+    dfnetwork["type"] = dfnetwork["name"].apply(lambda x: x[0])
+    dfnetwork["index_by_type"] = dfnetwork["name"].apply(lambda x: int(x[1:]))
+    dfnetwork["edge_index"] = dfnetwork.index
+    dfnetwork["b"] = _compute_susceptances(net, dfnetwork, method=susceptance_method)
+    dfnetwork["c"] = _compute_capacities(net, dfnetwork)
+    dfnetwork["edge_id"] = tuple(zip(dfnetwork["from_bus"], dfnetwork["to_bus"]))
+    dfnetwork.drop(dfnetwork[dfnetwork["in_service"] == False].index, inplace=True)
+
+    # Create df of the buses
+    df_bus = net.res_bus
+    df_bus.loc[net.gen.bus, "p_gen"] = -net.res_gen["p_mw"].values
+    df_bus.loc[net.load.bus, "p_load"] = net.res_load["p_mw"].values
+    df_bus.loc[net.ext_grid.bus, "p_ext_grid"] = -net.res_ext_grid["p_mw"].values
+    if hasattr(net, "sgen"):
+        # There could be multiple generators to one bus
+        sgen_bus_idx = net.sgen.bus.unique()
+        temp_df_bus = pd.concat([net.sgen["bus"], net.res_sgen["p_mw"]], axis=1)
+        p_sgen = temp_df_bus.groupby(["bus"]).sum()["p_mw"]
+        df_bus.loc[sgen_bus_idx, "p_sgen"] = -p_sgen
+
+    # Consider merging lines
+    if merge_lines:
+        dfnetwork = (
+            dfnetwork.groupby(["from_bus", "to_bus"])
+            .agg(
+                {
+                    "in_service": lambda x: list(x)[0],
+                    "name": lambda x: list(x)[0],
+                    "f": "sum",
+                    "weight": "sum",
+                    "loading_percent": "sum",
+                    "edge_index": lambda x: list(x),
+                    "type": lambda x: list(x)[0],
+                    "index_by_type": lambda x: list(x),
+                    "b": "sum",
+                    "c": "sum",
+                    "edge_id": lambda x: list(x)[0],
+                }
+            )
+            .reset_index()
+        )
+        dfnetwork["loading_percent"] = dfnetwork["weight"] / dfnetwork["c"] * 100
+
+    # Create igraph of the network
+    igg = ig.Graph.TupleList(
+        dfnetwork.itertuples(index=False),
+        directed=False,
+        vertex_name_attr="name",
+        weights=False,
+        edge_attrs=[
+            "in_service",
+            "name",
+            "f",
+            "weight",
+            "loading_percent",
+            "type",
+            "index_by_type",
+            "edge_index",
+            "b",
+            "c",
+            "edge_id",
+        ],
+    )
+    igg.vs["community"] = [0] * (igg.vcount())
+    igg.vs["p"] = bus_load
+
+    # Create networkx graph of the network
+    if merge_lines:
+        graph_constructor = nx.Graph()
+    else:
+        graph_constructor = nx.MultiGraph()
+    G = nx.from_pandas_edgelist(
+        dfnetwork,
+        source="from_bus",
+        target="to_bus",
+        edge_attr=[
+            "in_service",
+            "name",
+            "f",
+            "weight",
+            "loading_percent",
+            "type",
+            "index_by_type",
+            "edge_index",
+            "b",
+            "c",
+            "edge_id",
+        ],
+        create_using=graph_constructor
+        # edge_key = 'name', # TODO: add this if we consider multigraphs
+    )
+
+    nx.set_node_attributes(G, 0, name="community")
+    nx.set_node_attributes(G, bus_load, name="p")
+    # nx.set_node_attributes(G, igg.vs["name"], name="p")
+
+    # Multigraph nx_id
+    temp_d = sorted([(G.get_edge_data(*e)["edge_index"], e) for e in G.edges])
+    nx_id = [x[-1] for x in temp_d]
+    dfnetwork["nx_id"] = nx_id
+
+    return net, dfnetwork, df_bus, igg, G
 
     ########################################################################
     # Helper functions
@@ -187,154 +335,3 @@ def load_case(
         c_trafo = net.trafo.sn_mva.values
         c = np.append(c_line, c_trafo)
         return c
-
-    ########################################################################
-    if pn_case:
-        net = case.pn
-    else:
-        net = pc.from_mpc(str(case.path))
-
-    # Run (O)PF or change ref bus first
-    if ac:
-        try:
-            pp.runopp(net) if opf_flag else pp.runpp(net)
-        except UserWarning:
-            ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
-            _change_ref_bus(net, ref_gen, ext_grid_p=0)
-            pp.runopp(net) if opf_flag else pp.runpp(net)
-    else:
-        try:
-            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
-        except UserWarning:
-            ref_gen = net.gen.bus.iloc[0]  # bus index of first generator
-            _change_ref_bus(net, ref_gen, ext_grid_p=0)
-            pp.rundcopp(net) if opf_flag else pp.rundcpp(net)
-
-    dict_line = {i: i for i in range(len(net.line))}
-    dict_trafo = {i: len(net.line) + i for i in range(len(net.trafo))}
-
-    # Change load/generator power injections setpoints according to OPF
-    net.load["p_mw"] = net.res_load["p_mw"]
-    net.gen["p_mw"] = net.res_gen["p_mw"]
-    bus_load = net.res_bus.p_mw
-
-    # Change edge names to L#/T#
-    net.line["name"] = [f"L{idx}" for idx in net.line.index]
-    net.trafo["name"] = [f"T{idx}" for idx in net.trafo.index]
-
-    # Create df of the network (lines)
-    dfnetwork = net.line[["from_bus", "to_bus", "in_service", "name"]].rename(
-        index=dict_line
-    )
-    dfnetwork = dfnetwork.combine_first(
-        net.trafo[["hv_bus", "lv_bus", "in_service", "name"]].rename(
-            columns={"hv_bus": "from_bus", "lv_bus": "to_bus"}, index=dict_trafo
-        )
-    )
-    dfnetwork["from_bus"] = dfnetwork["from_bus"].astype(int)
-    dfnetwork["to_bus"] = dfnetwork["to_bus"].astype(int)
-    dfnetwork["weight"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
-    dfnetwork["f"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
-    dfnetwork["loading_percent"] = _combine_line_trafo("loading_percent")
-    dfnetwork["type"] = dfnetwork["name"].apply(lambda x: x[0])
-    dfnetwork["index_by_type"] = dfnetwork["name"].apply(lambda x: int(x[1:]))
-    dfnetwork["edge_index"] = dfnetwork.index
-    dfnetwork["b"] = _compute_susceptances(net, dfnetwork, method=susceptance_method)
-    dfnetwork["c"] = _compute_capacities(net, dfnetwork)
-    dfnetwork["edge_id"] = tuple(zip(dfnetwork["from_bus"], dfnetwork["to_bus"]))
-    dfnetwork.drop(dfnetwork[dfnetwork["in_service"] == False].index, inplace=True)
-
-    # Create df of the buses
-    df_bus = net.res_bus
-    df_bus.loc[net.gen.bus, "p_gen"] = -net.res_gen["p_mw"].values
-    df_bus.loc[net.load.bus, "p_load"] = net.res_load["p_mw"].values
-    df_bus.loc[net.ext_grid.bus, "p_ext_grid"] = -net.res_ext_grid["p_mw"].values
-    if hasattr(net, "sgen"):
-        # There could be multiple generators to one bus
-        sgen_bus_idx = net.sgen.bus.unique()
-        temp_df_bus = pd.concat([net.sgen["bus"], net.res_sgen["p_mw"]], axis=1)
-        p_sgen = temp_df_bus.groupby(["bus"]).sum()["p_mw"]
-        df_bus.loc[sgen_bus_idx, "p_sgen"] = -p_sgen
-
-    # Consider merging lines
-    if merge_lines:
-        dfnetwork = (
-            dfnetwork.groupby(["from_bus", "to_bus"])
-            .agg(
-                {
-                    "in_service": lambda x: list(x)[0],
-                    "name": lambda x: list(x)[0],
-                    "f": "sum",
-                    "weight": "sum",
-                    "loading_percent": "sum",
-                    "edge_index": lambda x: list(x),
-                    "type": lambda x: list(x)[0],
-                    "index_by_type": lambda x: list(x),
-                    "b": "sum",
-                    "c": "sum",
-                    "edge_id": lambda x: list(x)[0],
-                }
-            )
-            .reset_index()
-        )
-        dfnetwork["loading_percent"] = dfnetwork["weight"] / dfnetwork["c"] * 100
-
-    # Create igraph of the network
-    igg = ig.Graph.TupleList(
-        dfnetwork.itertuples(index=False),
-        directed=False,
-        vertex_name_attr="name",
-        weights=False,
-        edge_attrs=[
-            "in_service",
-            "name",
-            "f",
-            "weight",
-            "loading_percent",
-            "type",
-            "index_by_type",
-            "edge_index",
-            "b",
-            "c",
-            "edge_id",
-        ],
-    )
-    igg.vs["community"] = [0] * (igg.vcount())
-    igg.vs["p"] = bus_load
-
-    # Create networkx graph of the network
-    if merge_lines:
-        graph_constructor = nx.Graph()
-    else:
-        graph_constructor = nx.MultiGraph()
-    G = nx.from_pandas_edgelist(
-        dfnetwork,
-        source="from_bus",
-        target="to_bus",
-        edge_attr=[
-            "in_service",
-            "name",
-            "f",
-            "weight",
-            "loading_percent",
-            "type",
-            "index_by_type",
-            "edge_index",
-            "b",
-            "c",
-            "edge_id",
-        ],
-        create_using=graph_constructor
-        # edge_key = 'name', # TODO: add this if we consider multigraphs
-    )
-
-    nx.set_node_attributes(G, 0, name="community")
-    nx.set_node_attributes(G, bus_load, name="p")
-    # nx.set_node_attributes(G, igg.vs["name"], name="p")
-
-    # Multigraph nx_id
-    temp_d = sorted([(G.get_edge_data(*e)["edge_index"], e) for e in G.edges])
-    nx_id = [x[-1] for x in temp_d]
-    dfnetwork["nx_id"] = nx_id
-
-    return net, dfnetwork, df_bus, igg, G
