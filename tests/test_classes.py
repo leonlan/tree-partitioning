@@ -9,7 +9,7 @@ class TestCaseNoMerge:
     net = case.net
     netdict = case.netdict
     G = case.G
-    # igg = case.igg
+    igg = case.igg
 
     def test_net_and_netdict(self):
         """
@@ -43,7 +43,7 @@ class TestCaseNoMerge:
         Verify identical characteristics of netdict and ig.igg.
         """
         netdict = self.netdict
-        # igg = self.igg
+        igg = self.igg
 
 
 class TestCaseMerge:
