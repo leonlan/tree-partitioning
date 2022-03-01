@@ -8,7 +8,7 @@ import pandas as pd
 
 from ._pp_utils import _load_pp_case, _netdict_from_pp_net
 from ._nx_utils import _G_from_netdict
-from ._igg_utils import _igg_from_netdict
+from ._ig_utils import _igg_from_netdict
 
 
 class Singleton(type):

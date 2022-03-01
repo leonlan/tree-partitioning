@@ -1,5 +1,6 @@
 #!/usr/bin/env ipython
 import igraph as ig
+import pandas as pd
 
 
 def _igg_from_netdict(netdict):
@@ -7,7 +8,7 @@ def _igg_from_netdict(netdict):
     Create an igraph graph from netdict.
     """
     igg = ig.Graph.TupleList(
-        dfnetwork.itertuples(index=False),
+        pd.DataFrame.from_dict(netdict["lines"]).T.itertuples(index=False),
         directed=False,
         vertex_name_attr="name",
         weights=False,
@@ -26,6 +27,6 @@ def _igg_from_netdict(netdict):
         ],
     )
     igg.vs["community"] = [0] * (igg.vcount())
-    igg.vs["p"] = bus_load
+    igg.vs["p_mw"] = pd.DataFrame(netdict["buses"]).T.p_mw
 
     return igg

@@ -45,6 +45,13 @@ class TestCaseNoMerge:
         netdict = self.netdict
         igg = self.igg
 
+        assert len(netdict["lines"]) == len(igg.es)
+        assert len(netdict["buses"]) == len(igg.vs)
+        assert all(
+            data["p_mw"] == igg.vs[bus]["p_mw"]
+            for bus, data in netdict["buses"].items()
+        )
+
 
 class TestCaseMerge:
     case = Case(Path("data/pglib_opf_case5_pjm.mat"), merge_lines=True)
