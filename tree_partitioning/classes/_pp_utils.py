@@ -1,20 +1,21 @@
 #!/usr/bin/env ipython
 import numpy as np
+import pandas as pd
+
 import pandapower as pp
 import pandapower.converter as pc
 import pandapower.networks as pn
 
 
 def _load_pp_case(
-    path, merge_lines, opf_init, ac,
+    path, opf_init, ac,
 ):
-    """Loads the selected test case.
-
-    - opf_init (bool): Run an initial DCOPF instead of regular PF
-    - merge_lines (bool): Returns all items except net with merged lines
-
     """
+    Loads the selected test case.
 
+    - opf_init (bool): Run an initial OPF instead of regular PF
+    - ac (bool): Runs on AC power flows
+    """
     net = pc.from_mpc(path)
 
     # Run (O)PF or change ref bus first
@@ -33,6 +34,13 @@ def _load_pp_case(
             _change_ref_bus(net, ref_gen, ext_grid_p=0)
             pp.rundcopp(net) if opf_init else pp.rundcpp(net)
 
+    return net
+
+
+def _netdict_from_pp_net(net, merge_lines):
+    """
+    - merge_lines (bool): Returns merged network.
+    """
     dict_line = {i: i for i in range(len(net.line))}
     dict_trafo = {i: len(net.line) + i for i in range(len(net.trafo))}
 
@@ -56,13 +64,19 @@ def _load_pp_case(
     )
     dfnetwork["from_bus"] = dfnetwork["from_bus"].astype(int)
     dfnetwork["to_bus"] = dfnetwork["to_bus"].astype(int)
-    dfnetwork["weight"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
-    dfnetwork["f"] = abs(_combine_line_trafo("p_from_mw", "p_hv_mw"))
-    dfnetwork["loading_percent"] = _combine_line_trafo("loading_percent")
+    dfnetwork["weight"] = abs(
+        _combine_line_trafo(net, dict_line, dict_trafo, "p_from_mw", "p_hv_mw")
+    )
+    dfnetwork["f"] = abs(
+        _combine_line_trafo(net, dict_line, dict_trafo, "p_from_mw", "p_hv_mw")
+    )
+    dfnetwork["loading_percent"] = _combine_line_trafo(
+        net, dict_line, dict_trafo, "loading_percent"
+    )
     dfnetwork["type"] = dfnetwork["name"].apply(lambda x: x[0])
     dfnetwork["index_by_type"] = dfnetwork["name"].apply(lambda x: int(x[1:]))
     dfnetwork["edge_index"] = dfnetwork.index
-    dfnetwork["b"] = _compute_susceptances(net, dfnetwork, method=susceptance_method)
+    dfnetwork["b"] = _compute_susceptances(net, dfnetwork)
     dfnetwork["c"] = _compute_capacities(net, dfnetwork)
     dfnetwork["edge_id"] = tuple(zip(dfnetwork["from_bus"], dfnetwork["to_bus"]))
     dfnetwork.drop(dfnetwork[dfnetwork["in_service"] == False].index, inplace=True)
@@ -72,6 +86,7 @@ def _load_pp_case(
     df_bus.loc[net.gen.bus, "p_gen"] = -net.res_gen["p_mw"].values
     df_bus.loc[net.load.bus, "p_load"] = net.res_load["p_mw"].values
     df_bus.loc[net.ext_grid.bus, "p_ext_grid"] = -net.res_ext_grid["p_mw"].values
+
     if hasattr(net, "sgen"):
         # There could be multiple generators to one bus
         sgen_bus_idx = net.sgen.bus.unique()
@@ -102,65 +117,9 @@ def _load_pp_case(
         )
         dfnetwork["loading_percent"] = dfnetwork["weight"] / dfnetwork["c"] * 100
 
-    # Create igraph of the network
-    igg = ig.Graph.TupleList(
-        dfnetwork.itertuples(index=False),
-        directed=False,
-        vertex_name_attr="name",
-        weights=False,
-        edge_attrs=[
-            "in_service",
-            "name",
-            "f",
-            "weight",
-            "loading_percent",
-            "type",
-            "index_by_type",
-            "edge_index",
-            "b",
-            "c",
-            "edge_id",
-        ],
-    )
-    igg.vs["community"] = [0] * (igg.vcount())
-    igg.vs["p"] = bus_load
+    netdict = {"buses": df_bus.T.to_dict(), "lines": dfnetwork.T.to_dict()}
 
-    # Create networkx graph of the network
-    if merge_lines:
-        graph_constructor = nx.Graph()
-    else:
-        graph_constructor = nx.MultiGraph()
-    G = nx.from_pandas_edgelist(
-        dfnetwork,
-        source="from_bus",
-        target="to_bus",
-        edge_attr=[
-            "in_service",
-            "name",
-            "f",
-            "weight",
-            "loading_percent",
-            "type",
-            "index_by_type",
-            "edge_index",
-            "b",
-            "c",
-            "edge_id",
-        ],
-        create_using=graph_constructor
-        # edge_key = 'name', # TODO: add this if we consider multigraphs
-    )
-
-    nx.set_node_attributes(G, 0, name="community")
-    nx.set_node_attributes(G, bus_load, name="p")
-    # nx.set_node_attributes(G, igg.vs["name"], name="p")
-
-    # Multigraph nx_id
-    temp_d = sorted([(G.get_edge_data(*e)["edge_index"], e) for e in G.edges])
-    nx_id = [x[-1] for x in temp_d]
-    dfnetwork["nx_id"] = nx_id
-
-    return net, dfnetwork, df_bus, igg, G
+    return netdict
 
 
 """
@@ -168,7 +127,7 @@ Helper functions
 """
 
 
-def _combine_line_trafo(cols1, cols2=None):
+def _combine_line_trafo(net, dict_line, dict_trafo, cols1, cols2=None):
     """Combines the results of line and transformer dataframes."""
     if not cols2:
         cols2 = cols1
@@ -177,92 +136,37 @@ def _combine_line_trafo(cols1, cols2=None):
     return res
 
 
-def _compute_susceptances(net, df, method):
-    """Compute susceptances of the network. Can use two different methods which
-    are similar but yield slightly different resuls.
-
+def _compute_susceptances(net, df):
+    """
+    Compute susceptances of the network.
     - net: pandapower network
     - df: dataframe of the network
-    - susceptance_method: "pypower" or "pandapower" method for calculating b
     """
-
-    # Obtain the susceptances using either pandapower of pypower calculations
-    if method == "pandapower":
-        # Line values
-        b_lines = (
-            np.array(
-                1
-                / (
-                    net.line["x_ohm_per_km"]
-                    * net.line["length_km"]
-                    * net.sn_mva
-                    / net.line["parallel"]
-                )
+    # Line values
+    b_lines = (
+        np.array(
+            1
+            / (
+                net.line["x_ohm_per_km"]
+                * net.line["length_km"]
+                * net.sn_mva
+                / net.line["parallel"]
             )
-            * net.bus.loc[net.line.from_bus.values, "vn_kv"].values ** 2
         )
+        * net.bus.loc[net.line.from_bus.values, "vn_kv"].values ** 2
+    )
 
-        # Transformer susceptances
-        zk = net.trafo["vk_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
-        rk = net.trafo["vkr_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
-        xk = np.array(zk * zk - rk * rk) ** (1 / 2)
+    # Transformer susceptances
+    zk = net.trafo["vk_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
+    rk = net.trafo["vkr_percent"] / 100 * net.sn_mva / net.trafo["sn_mva"]
+    xk = np.array(zk * zk - rk * rk) ** (1 / 2)
 
-        # Fill nans in tap_step_percent with 0
-        net_trafo_tap_step_percent = net.trafo["tap_step_percent"].fillna(0)
-        tapratiok = np.array(1 - net_trafo_tap_step_percent / 100)
-        b_trafo = 1 / (xk * tapratiok)
+    # Fill nans in tap_step_percent with 0
+    net_trafo_tap_step_percent = net.trafo["tap_step_percent"].fillna(0)
+    tapratiok = np.array(1 - net_trafo_tap_step_percent / 100)
+    b_trafo = 1 / (xk * tapratiok)
 
-        b = np.append(b_lines, b_trafo)
-
-    elif method == "pypower":
-        ### Convert to pypower format
-        from pandapower.pd2ppc import (
-            _pd2ppc,
-            _calc_pq_elements_and_add_on_ppc,
-            _ppc2ppci,
-        )
-
-        ppc, ppci = _pd2ppc(net)
-
-        #### Function: _rund_dc_pf(ppci)
-        from pandapower.pypower.idx_bus import VA, GS
-        from pandapower.pf.ppci_variables import (
-            _get_pf_variables_from_ppci,
-            _store_results_from_pf_in_ppci,
-        )
-        from pandapower.pypower.dcpf import dcpf
-        from pandapower.pypower.makeBdc import makeBdc
-        from numpy import pi, zeros, real, bincount
-
-        (
-            baseMVA,
-            bus,
-            gen,
-            branch,
-            ref,
-            pv,
-            pq,
-            on,
-            gbus,
-            _,
-            refgen,
-        ) = _get_pf_variables_from_ppci(ppci)
-
-        #### Function: makeBdc
-        from pandapower.pypower.idx_brch import (
-            F_BUS,
-            T_BUS,
-            BR_X,
-            TAP,
-            SHIFT,
-            BR_STATUS,
-        )
-
-        stat = branch[:, BR_STATUS]  # ones at in-service branches
-        b = np.real(stat / branch[:, BR_X])  # series susceptance
-
-    elif method == "unweighted":
-        b = 1
+    b = np.append(b_lines, b_trafo)
 
     return b
 

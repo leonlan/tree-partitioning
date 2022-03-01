@@ -6,9 +6,9 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
-from ._pp_utils import _load_pp_case  # ,_netdict_from_pp_net
+from ._pp_utils import _load_pp_case, _netdict_from_pp_net
+from ._nx_utils import _G_from_netdict
 
-# from ._nx_utils import _G_from_netdict
 # from ._igg_utils import _igg_from_netdict
 
 
@@ -47,10 +47,10 @@ class Case(metaclass=Singleton):
     """
 
     def __init__(self, path, merge_lines=True, opf_init=True, ac=False):
-        self.net = _load_pp_case(path, merge_lines, opf_init, ac)
-        self.netdict = _netdict_from_pp_net(self.net)
+        self.net = _load_pp_case(path, opf_init, ac)
+        self.netdict = _netdict_from_pp_net(self.net, merge_lines)
         self.G = _G_from_netdict(self.netdict)
-        self.igg = _igg_from_netdict(self.netdict)
+        # self.igg = _igg_from_netdict(self.netdict)
 
     def __str__(self):
         return f"Case object for test case {self.name}."
