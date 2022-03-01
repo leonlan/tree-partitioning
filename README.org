@@ -39,6 +39,8 @@ See the [[examples]] folder for two examples of tree partitioning.
 
 * TODOS
 ** TODO Cases
+*** DONE NoMergedLines
+*** TODO MergedLines
 ** TODO Partitioning
 ** TODO Tree
 ** TODO Full MILP
