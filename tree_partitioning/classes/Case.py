@@ -6,26 +6,10 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
+from .Singleton import Singleton
 from ._pp_utils import _load_pp_case, _netdict_from_pp_net
 from ._nx_utils import _G_from_netdict
 from ._ig_utils import _igg_from_netdict
-
-
-class Singleton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            up = super(Singleton, cls).__call__(*args, **kwargs)
-            cls._instances[cls] = up
-
-        return cls._instances[cls]
-
-    def clear(cls):
-        try:
-            del Singleton._instances[cls]
-        except KeyError:
-            pass
 
 
 class Case(metaclass=Singleton):
