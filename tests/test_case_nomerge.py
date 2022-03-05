@@ -51,7 +51,3 @@ class TestCaseNoMerge:
             data["p_mw"] == igg.vs[bus]["p_mw"]
             for bus, data in netdict["buses"].items()
         )
-
-
-class TestCaseMerge:
-    case = Case(Path("data/pglib_opf_case5_pjm.mat"), merge_lines=True)

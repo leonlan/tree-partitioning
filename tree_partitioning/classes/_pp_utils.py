@@ -8,7 +8,7 @@ import pandapower.networks as pn
 
 
 def _load_pp_case(
-    path, opf_init, ac,
+    path: str, opf_init: bool, ac: bool,
 ):
     """
     Loads the selected test case.
@@ -100,17 +100,17 @@ def _netdict_from_pp_net(net, merge_lines):
             dfnetwork.groupby(["from_bus", "to_bus"])
             .agg(
                 {
-                    "in_service": lambda x: list(x)[0],
-                    "name": lambda x: list(x)[0],
+                    "in_service": lambda x: all(list(x)),
+                    "name": lambda x: list(x),
                     "f": "sum",
                     "weight": "sum",
                     "loading_percent": "sum",
                     "edge_index": lambda x: list(x),
-                    "type": lambda x: list(x)[0],
+                    "type": lambda x: list(x),
                     "index_by_type": lambda x: list(x),
                     "b": "sum",
                     "c": "sum",
-                    "edge_id": lambda x: list(x)[0],
+                    "edge_id": lambda x: list(x),
                 }
             )
             .reset_index()
