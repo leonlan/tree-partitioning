@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 class TestCaseMerge:
-    case = Case(Path("data/pglib_opf_case5_pjm.mat"), merge_lines=True)
+    case = Case.from_file(Path("data/pglib_opf_case5_pjm.mat"), merge_lines=True)
     net = case.net
     netdict = case.netdict
     G = case.G

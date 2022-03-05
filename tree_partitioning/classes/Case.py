@@ -2,9 +2,11 @@ import itertools
 import os
 from pathlib import Path
 
+import igraph as ig
 import networkx as nx
 import numpy as np
 import pandas as pd
+import pandapower as pp
 
 from .Singleton import Singleton
 from ._pp_utils import _load_pp_case, _netdict_from_pp_net
@@ -29,11 +31,44 @@ class Case(metaclass=Singleton):
     Params
     """
 
-    def __init__(self, path, merge_lines=True, opf_init=True, ac=False):
-        self.net = _load_pp_case(path, opf_init, ac)
-        self.netdict = _netdict_from_pp_net(self.net, merge_lines)
-        self.G = _G_from_netdict(self.netdict)
-        self.igg = _igg_from_netdict(self.netdict)
+    _name: str
+    _net: ...
+    _netdict: dict
+    _G: nx.MultiDiGraph
+    _igg: ig.Graph
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def net(self):
+        return self._net
+
+    @property
+    def netdict(self):
+        return self._netdict
+
+    @property
+    def G(self):
+        return self._G
+
+    @property
+    def igg(self):
+        return self._igg
+
+    @classmethod
+    def from_file(cls, path, merge_lines=True, opf_init=True, ac=False):
+        cls.clear()
+
+        case = cls()
+        case._name = str(path).split("pglib_opf_")[-1].split(".mat")[0]
+        case._net = _load_pp_case(path, opf_init, ac)
+        case._netdict = _netdict_from_pp_net(case._net, merge_lines)
+        case._G = _G_from_netdict(case._netdict)
+        case._igg = _igg_from_netdict(case._netdict)
+
+        return case
 
     def __str__(self):
         return f"Case object for test case {self.name}."
