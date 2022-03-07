@@ -75,12 +75,3 @@ class Case(metaclass=Singleton):
 
     def __repr__(self):
         return self.__str__()
-
-
-def create(file_name, name, pn=None):
-    """Creates a Testcase namedtuple for the case.
-
-    Calculates the full path and gives upper cased name.
-    """
-    path = DATA_DIR / Path(f"pglib_opf_case{file_name}.mat")
-    return TEST_CASE(path, name, pn)
