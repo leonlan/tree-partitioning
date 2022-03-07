@@ -31,6 +31,12 @@ class TestPartition:
         )
         assert all(clustering[cluster] == partition[cluster] for cluster in range(3))
 
+    def test_is_connected_clusters(self):
+        assert all(
+            nx.is_connected(self.G.subgraph(nodes))
+            for nodes in self.partition.clusters.values()
+        ) == self.partition.is_connected_clusters(self.G)
+
     # def test_is_bbd(self):
     #     assert not self.partitiong.is_bbd(self.G)
 

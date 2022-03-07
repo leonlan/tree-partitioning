@@ -1,3 +1,6 @@
+import networkx as nx
+
+
 class Partition:
     """
     A Partition object to store graph clusters.
@@ -36,3 +39,11 @@ class Partition:
         Load Partition from igraph.Clustering and/or igraph.VertexClustering.
         """
         return cls({cluster: buses for cluster, buses in enumerate(clustering)})
+
+    def is_connected_clusters(self, G):
+        """
+        Checks if the clusters form connected subgraphs in G.
+        """
+        is_connected = nx.is_weakly_connected if nx.is_directed(G) else nx.is_connected
+
+        return all(is_connected(G.subgraph(nodes)) for nodes in self.clusters.values())

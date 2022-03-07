@@ -13,3 +13,10 @@ class TestPartitioning:
         partition = fastgreedy(self.igg, n_clusters=4)
 
         assert partition.is_partition(self.G)
+        assert partition.is_connected_clusters(self.G)
+
+    def test_spectral_clustering(self):
+        partition = fastgreedy(self.igg, n_clusters=5)
+
+        assert partition.is_partition(self.G)
+        assert partition.is_connected_clusters(self.G)

@@ -7,7 +7,9 @@ import sklearn
 from tree_partitioning.classes import Partition
 
 
-def spectral_clustering(igg, n_clusters, matrix="Laplacian", weight="weight"):
+def spectral_clustering(
+    igg, n_clusters: int, matrix: str = "Laplacian", weight: str = "weight"
+):
     """
     Spectral clustering functions for various matrix definitions.
 
@@ -42,9 +44,7 @@ def spectral_clustering(igg, n_clusters, matrix="Laplacian", weight="weight"):
 
     # Assign original point i to the cluster of the row i of matrix Y
     clusters = np.array(kmeans.labels_)
-    return Partition.from_VertexClustering(
-        ig.VertexClustering(igg, membership=clusters)
-    )
+    return Partition.from_clustering(ig.VertexClustering(igg, membership=clusters))
 
 
 def _compute_matrix(igg, matrix: str, weight: str):
