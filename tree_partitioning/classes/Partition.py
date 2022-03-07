@@ -1,8 +1,6 @@
-class Partition(dict):
+class Partition:
     """
     A Partition object to store graph clusters.
-
-    dict
     """
 
     def __init__(self, clusters: dict):
