@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import networkx as nx
+import igraph as ig
 
 from tree_partitioning.classes import Case, Partition
 
@@ -20,6 +21,15 @@ class TestPartition:
 
     def test_is_partition(self):
         assert self.partition.is_partition(self.G)
+
+    def test_from_clustering(self):
+        clustering = ig.Clustering(membership=[0, 0, 0, 1, 1, 2, 2, 2, 2, 2])
+        partition = Partition.from_clustering(clustering)
+
+        assert all(
+            clustering.membership[v] == partition.membership[v] for v in range(10)
+        )
+        assert all(clustering[cluster] == partition[cluster] for cluster in range(3))
 
     # def test_is_bbd(self):
     #     assert not self.partitiong.is_bbd(self.G)

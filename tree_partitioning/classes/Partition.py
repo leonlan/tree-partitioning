@@ -31,3 +31,10 @@ class Partition(dict):
         Checks if the partition is indeed a partition of G.
         """
         return all(bus in G.nodes for bus in self.membership)
+
+    @classmethod
+    def from_clustering(cls, clustering):
+        """
+        Load Partition from igraph.Clustering and/or igraph.VertexClustering.
+        """
+        return cls({cluster: buses for cluster, buses in enumerate(clustering)})
