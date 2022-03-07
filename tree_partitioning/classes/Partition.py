@@ -7,7 +7,7 @@ class Partition(dict):
 
     def __init__(self, clusters: dict):
         self.clusters = clusters
-        self.bus2cluster = self._bus_to_cluster()
+        self.membership = self._get_membership()
 
     def __repr__(self):
         return str(self.clusters)
@@ -18,7 +18,7 @@ class Partition(dict):
     def __getitem__(self, key):
         return self.clusters[key]
 
-    def _bus_to_cluster(self):
+    def _get_membership(self):
         """
         Return a dictionary that maps bus indices to cluster numbers.
         """
@@ -30,4 +30,4 @@ class Partition(dict):
         """
         Checks if the partition is indeed a partition of G.
         """
-        return all(bus in G.nodes for bus in self.bus2cluster)
+        return all(bus in G.nodes for bus in self.membership)

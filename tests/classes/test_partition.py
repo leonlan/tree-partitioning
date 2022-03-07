@@ -10,14 +10,19 @@ class TestPartition:
     G = nx.complete_graph(10)
 
     def test_clusters_to_buses(self):
-        b2c = self.partition.bus2cluster
-        assert all(bus in self.partition[cluster] for bus, cluster in b2c.items())
+        membership = self.partition.membership
+        assert all(
+            bus in self.partition[cluster] for bus, cluster in membership.items()
+        )
 
     def test_len(self):
         assert len(self.partition) == 3
 
     def test_is_partition(self):
         assert self.partition.is_partition(self.G)
+
+    # def test_is_bbd(self):
+    #     assert not self.partitiong.is_bbd(self.G)
 
 
 class TestPartitionFromCase:
@@ -33,3 +38,7 @@ class TestPartitionFromCase:
         """
         partition = Partition({0: [bus for bus in self.netdict["buses"].keys()]})
         assert partition.is_partition(self.G)
+
+
+class TestBBD:
+    ...
