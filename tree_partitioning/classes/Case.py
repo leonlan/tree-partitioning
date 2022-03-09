@@ -57,6 +57,10 @@ class Case(metaclass=Singleton):
     def igg(self):
         return self._igg
 
+    @property
+    def all_objects(self):
+        return self._net, self._netdict, self._G, self._igg
+
     @classmethod
     def from_file(cls, path, merge_lines=True, opf_init=True, ac=False):
         cls.clear()

@@ -55,6 +55,13 @@ class TestCaseMerge:
             for bus, data in netdict["buses"].items()
         )
 
+    def test_all(self):
+        net, netdict, G, igg = self.case.all_objects
+        assert self.net == net
+        assert self.netdict == netdict
+        assert self.G == G
+        assert self.igg == igg
+
 
 class TestCaseNoMerge:
     case = Case.from_file(Path("data/pglib_opf_case300_ieee.mat"), merge_lines=False)
