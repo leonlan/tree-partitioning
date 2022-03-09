@@ -34,11 +34,16 @@ class Partition:
         return all(bus in G.nodes for bus in self.membership)
 
     @classmethod
-    def from_clustering(cls, clustering):
+    def from_clustering(cls, igg, clustering):
         """
         Load Partition from igraph.Clustering and/or igraph.VertexClustering.
         """
-        return cls({cluster: buses for cluster, buses in enumerate(clustering)})
+        cluster_dict = {
+            cluster: [igg.vs["name"][bus] for bus in buses]
+            for cluster, buses in enumerate(clustering)
+        }
+
+        return cls(cluster_dict)
 
     def is_connected_clusters(self, G):
         """

@@ -281,7 +281,6 @@ def oneshotalgorithm(
     # TODO: Change i varname to more descriptive (e.g. method)
     # TODO: Changed it, but check if this works.
     for method in results.index:
-        t = time.time()
         G = igg.copy()
         activelines = G.ecount()
 

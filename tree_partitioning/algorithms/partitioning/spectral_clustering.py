@@ -2,7 +2,7 @@
 import igraph as ig
 import numpy as np
 import scipy
-import sklearn
+from sklearn.cluster import KMeans
 
 from tree_partitioning.classes import Partition
 
@@ -40,11 +40,11 @@ def spectral_clustering(
     Y = np.divide(X, norm_matrix, out=np.zeros_like(X), where=norm_matrix != 0)
 
     # Cluster rows of Y into k clusters using K-means
-    kmeans = sklearn.cluster.KMeans(n_clusters=n_clusters).fit(Y)
+    kmeans = KMeans(n_clusters=n_clusters).fit(Y)
 
     # Assign original point i to the cluster of the row i of matrix Y
     clusters = np.array(kmeans.labels_)
-    return Partition.from_clustering(ig.VertexClustering(igg, membership=clusters))
+    return Partition.from_clustering(igg, ig.VertexClustering(igg, membership=clusters))
 
 
 def _compute_matrix(igg, matrix: str, weight: str):

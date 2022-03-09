@@ -11,4 +11,4 @@ def fastgreedy(igg, n_clusters: int, weights: str = "weight"):
         n=n_clusters
     )
 
-    return Partition.from_clustering(partition)
+    return Partition.from_clustering(simple_igg, partition)
