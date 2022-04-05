@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import pandapower as pp
 
 from .Case import Case
 from .ReducedGraph import ReducedGraph
@@ -12,12 +13,18 @@ class Solution:
     A Solution is represented by a tree partition.
     """
 
-    def __init__(self, partition: Partition, switched_lines: SwitchedLines):
-        self.G = Case().G
+    def __init__(self, partition: Partition, switched_lines: list):
+        case = Case()
+        self.G = case.G
+        self.net = case.net
         self.partition = partition
         self.switched_lines = switched_lines
+
         self.post_switching_graph = self.G.copy()
-        self.post_switching_graph.remove_edges_from(switched_lines.lines)
+        self.post_switching_graph.remove_edges_from(switched_lines)
+        self.post_switching_net = _deactivate_lines_pp(self.net, switched_lines)
+
+        self._objective = None
 
     def is_tree_partition(self):
         """
@@ -28,6 +35,18 @@ class Solution:
             nx.is_weakly_connected(self.post_switching_graph)
             and ReducedGraph(self.post_switching_graph, self.partition).is_tree()
         )
+
+    @property
+    def objective(self) -> float:
+        if not self._objective:
+            self.compute_objective()
+
+        return self._objective
+
+    def compute_objective(self):
+        """Compute objective if not available yet."""
+        pp.rundcpp(self.post_switching_net)
+        self._objective = _max_loading_percent(self.post_switching_net)
 
     def plot(self, path: str, show=False):
         nc = [
@@ -55,9 +74,7 @@ class Solution:
         lines = nx.draw_networkx_edges(
             self.G,
             pos,
-            edgelist=[
-                e for e in self.G.edges if list(e) not in self.switched_lines.lines
-            ],
+            edgelist=[e for e in self.G.edges if list(e) not in self.switched_lines],
             arrows=False,
             width=2.5,
             edge_color="#595959",
@@ -67,7 +84,7 @@ class Solution:
         switched_lines = nx.draw_networkx_edges(
             self.G,
             pos,
-            edgelist=[e for e in self.G.edges if list(e) in self.switched_lines.lines],
+            edgelist=[e for e in self.G.edges if list(e) in self.switched_lines],
             arrows=False,
             width=2,
             alpha=0.8,
@@ -84,3 +101,29 @@ class Solution:
             plt.show()
 
         plt.savefig(path)
+
+
+# FIXME: NOT DRY: also used in brute_force
+def _deactivate_lines_pp(net, lines):
+    """Deactivate lines of a pandapower network. """
+    # Get the line names first from the lines
+    netdict = Case().netdict
+    line_names = [netdict["lines"][line]["name"] for line in lines]
+
+    net = pp.copy.deepcopy(net)
+    net.line.loc[net.line["name"].isin(line_names), "in_service"] = False
+    net.trafo.loc[net.trafo["name"].isin(line_names), "in_service"] = False
+
+    return net
+
+
+def _max_loading_percent(net):
+    """Compute the maximum loading percent of net."""
+    gl = max(net.res_line.loading_percent) / 100
+
+    # Some cases do not have transformers
+    try:
+        gt = max(net.res_trafo.loading_percent) / 100
+    except ValueError:
+        return gl
+    return max(gl, gt)
