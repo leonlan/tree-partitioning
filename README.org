@@ -42,8 +42,12 @@ See the [[examples]] folder for two examples of tree partitioning.
 *** DONE NoMergedLines
 *** DONE MergedLines
 ** TODO Partitioning
+*** Partition Class
+**** TODO FastGreedy and SC do not yet create connected clusters
 ** TODO Tree
 ** TODO Full MILP
 ** TODO cascading failure
 ** TODO GCI
 ** TODO ST
+
+** TODO [#A] Change milp =pyo.= to =model.=

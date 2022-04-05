@@ -118,8 +118,8 @@ def _netdict_from_pp_net(net, merge_lines):
         dfnetwork["loading_percent"] = dfnetwork["weight"] / dfnetwork["c"] * 100
 
     lines = {
-        (data["from_bus"], data["to_bus"]): data
-        for line, data in dfnetwork.T.to_dict().items()
+        (data["from_bus"], data["to_bus"], i): data
+        for i, (line, data) in enumerate(dfnetwork.T.to_dict().items())
     }
     netdict = {"buses": df_bus.T.to_dict(), "lines": lines}
 

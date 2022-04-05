@@ -1,7 +1,12 @@
-#!/usr/bin/env ipython
 import pyomo.environ as pyo
 
-from tree_partitioning.classes import Case, TreePartition, Partition, SwitchedLines
+from tree_partitioning.classes import (
+    Case,
+    Partition,
+    ReducedGraph,
+    SwitchedLines,
+    Solution,
+)
 
 
 def milp_line_switching(partition: Partition, objective="congestion"):
@@ -17,253 +22,151 @@ def milp_line_switching(partition: Partition, objective="congestion"):
         - "pfd": power flow disruption
     - solver (optional): Choice of solver defined by the pulp api
     """
+    model = _milp_solve_pyomo(partition, objective=objective)
 
-    switched_lines = SwitchedLines(...)
-    return TreePartition(partition, switched_lines)
-
-
-def _milp_pulp(G, P, objective="gamma", solver=""):
-    """Solves the OBS problem as MILP.
-
-    The core idea of Optimal Bridge Switching (OBS) is to select a spanning tree
-    in the reduced graph G_P. The lines that were not selected are to be switched
-    off.
-
-    Args:
-    - G: NetworkX graph
-    - objective: Objective function to be minimized
-        - "gamma": maximum congestion
-        - "pfd": power flow disruption
-        - otherwise the MILP solves for feasibility
-    - solver (optional): Choice of solver defined by the pulp api
-
-    Returns:
-    - results (dict): Dictionary containing all the interesting parameters.
-        - ...
-        - ...
-    """
-    GP = reduced_graph(G, P)
-    vertex_ids = G.nodes
-    edge_ids = G.edges
-    edge_P_ids = GP.edges
-    vertex_P_ids = GP.nodes
-
-    name2e = {G.get_edge_data(*e)["name"]: e for e in edge_ids}
-    name2ep = {GP.get_edge_data(*ep)["name"]: ep for ep in edge_P_ids}
-    cross_edges = [(name2e[name], name2ep[name]) for name in name2ep.keys()]
-    internal_edges = [
-        name2e[name] for name in name2e.keys() if name not in name2ep.keys()
-    ]
-
-    # Parameters
-    n = len(vertex_ids)
-    p = {v: G.nodes[v]["p"] for v in G.nodes}
-    b = {e: G.get_edge_data(*e)["b"] for e in G.edges}
-    c = {e: G.get_edge_data(*e)["c"] for e in G.edges}
-    M = {e: 100 * G.get_edge_data(*e)["c"] for e in G.edges}
-    s = {v: (-1 if v != 0 else len(vertex_P_ids) - 1) for v in GP.nodes}
-    weight = {e: GP.get_edge_data(*e)["weight"] for e in GP.edges}
-    neighbors = incident_edges(G)
-    neighbors_reduced = incident_edges(GP)
-
-    ##########################################
-    ####### Start MILP formulation ###########
-    ##########################################
-
-    # Variables
-    gamma = pl.LpVariable("gamma", cat="Continuous")
-    y = pl.LpVariable.dicts("y", edge_P_ids, cat="Binary")
-    f = pl.LpVariable.dicts("f", edge_ids, cat="Continuous")
-    fplus = pl.LpVariable.dicts("fplus", edge_ids, lowBound=0, cat="Continuous")
-    fmin = pl.LpVariable.dicts("fmin", edge_ids, lowBound=0, cat="Continuous")
-    q = pl.LpVariable.dicts("q", edge_P_ids, cat="Continuous")
-    theta = pl.LpVariable.dicts("theta", vertex_ids, cat="Continuous")
-
-    # Define the model
-    model = pl.LpProblem("OBS", pl.LpMinimize)
-
-    # Objective function
-    if objective == "gamma":
-        model += gamma
-    elif objective == "pfd":
-        model += pl.lpSum([weight[e] * y[e] for e in edge_P_ids])
-    else:
-        model += 0
-
-    # Auxilliary max variable constraint
-    for i, j, k in edge_ids:
-        model += gamma >= f[(i, j, k)] * (1 / c[(i, j, k)])
-
-    # Absolute flow
-    for i, j, k in edge_ids:
-        model += f[(i, j, k)] == fplus[(i, j, k)] + fmin[(i, j, k)]
-
-    # SCF #1: Flow conservation
-    for r in vertex_P_ids:
-        model += (
-            pl.lpSum([di * q[(u, v, w)] for (u, v, w), di in neighbors_reduced[r]])
-            == s[r]
-        )
-    # SCF #2: Bounds
-    for (u, v, w) in edge_P_ids:
-        model += q[(u, v, w)] <= (len(vertex_P_ids) - 1) * y[(u, v, w)]
-        model += q[(u, v, w)] >= -(len(vertex_P_ids) - 1) * y[(u, v, w)]
-
-    # Spanning tree
-    model += (
-        pl.lpSum([y[(u, v, w)] for (u, v, w) in edge_P_ids]) == len(vertex_P_ids) - 1
+    switched_lines = SwitchedLines(
+        [line for (_, _, *line), v in model.y.items() if v() == 0]
     )
 
-    # DC flow:
-    # If lines are switched off, their corresponding beta needs to
-    # be switched off as well. This is best modeled using an either-or
-    # constraints.
-    for e, ep in cross_edges:
-        i, j = e[0], e[1]
-        # Line is still activated
-        model += fplus[e] - fmin[e] >= b[e] * (theta[i] - theta[j]) - (1 - y[ep]) * M[e]
-        model += fplus[e] - fmin[e] <= b[e] * (theta[i] - theta[j]) + (1 - y[ep]) * M[e]
-
-        # Line is deactivated
-        model += f[e] >= -y[ep] * M[e]
-        model += f[e] <= y[ep] * M[e]
-
-    for i, j, k in internal_edges:
-        model += fplus[(i, j, k)] - fmin[(i, j, k)] == b[(i, j, k)] * (
-            theta[i] - theta[j]
-        )
-
-    # KCL
-    for u in vertex_ids:
-        model += (
-            pl.lpSum(
-                [di * (fplus[(i, j, k)] - fmin[(i, j, k)])]
-                for (i, j, k), di in neighbors[u]
-            )
-            == p[u]
-        )
-
-    # Refbus
-    model += theta[n - 1] == 0
-    # breakpoint()
-    if solver:
-        model.solve(solver)
-    else:
-        model.solve()  # Uses the built-in solver
-
-    # Gather the results
-    new_flows = {
-        G[i][j][k]["name"]: fplus[(i, j, k)].value() - fmin[(i, j, k)].value()
-        for (i, j, k), v in f.items()
-    }
-    congestion = {
-        G[i][j][k]["name"]: v.value() / c[(i, j, k)] for (i, j, k), v in f.items()
-    }
-    gamma = model.objective.value()
-    removed_lines = [
-        GP.get_edge_data(*e)["name"] for e, v in y.items() if v.value() == 0
-    ]
-    delta_f = {
-        G.get_edge_data(*e)["name"]: abs(G.get_edge_data(*e)["weight"] - v.value())
-        for e, v in f.items()
-        if G.get_edge_data(*e)["name"] not in removed_lines
-    }
-    power_flow_disruption = sum(
-        [
-            G.get_edge_data(*e)["weight"]
-            for e in G.edges
-            if G.get_edge_data(*e)["name"] in removed_lines
-        ]
-    )
-    if power_flow_disruption:
-        delta_f_normalized = {k: v / power_flow_disruption for k, v in delta_f.items()}
-
-    congested_lines = [name for name, cg in congestion.items() if cg > 1 + 0.001]
-
-    results = {
-        "model": model,
-        "f": new_flows,
-        "congestion": congestion,
-        "gamma": gamma,
-        "running_time": model.solutionTime,
-        "removed_lines": removed_lines,
-        "delta_f": delta_f,
-        "power_flow_disruption": power_flow_disruption,
-        "congested_lines": congested_lines,
-    }
-    if power_flow_disruption:
-        results["delta_f_normalized"] = delta_f_normalized
-
-    return results
+    return Solution(partition, switched_lines)
 
 
-def _milp_pyomo(P, objective="congestion", solver=""):
+def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
     """
-    ...
+    Solve the Line Switching Problem.
+
     """
     case = Case()
     netdict = case.netdict
+    buses, lines = netdict["buses"], netdict["lines"]
+    reduced_graph = ReducedGraph(case.G, partition)
+    clusters = reduced_graph.clusters
+    cross_edges = reduced_graph.cross_edges
+    _cross_edge_lines = set(line for u, v, line in cross_edges)
+    internal_edges = [
+        line for line in netdict["lines"].keys() if line not in _cross_edge_lines
+    ]
+    ep2e = reduced_graph.cross_edge_to_line
 
     # Define a model
     model = pyo.ConcreteModel(f"Line Switching Problem: Minimize {objective}")
 
     # Declare decision variables
     model.gamma = pyo.Var(domain=pyo.NonNegativeReals)
-    model.fabs = pyo.Var(netdict["lines"], domain=pyo.NonNegativeReals)
-    model.fp = pyo.Var(netdict["lines"], domain=pyo.NonNegativeReals)
-    model.fm = pyo.Var(netdict["lines"], domain=pyo.NonNegativeReals)
-    model.theta = pyo.Var(netdict["buses"], domain=pyo.Reals)
-    # model.y = pyo.Var(rg["lines"], domain=pyo.Binary)
-    # model.q = pyo.Var(rg["lines"], domain=pyo.Reals)
+    model.fabs = pyo.Var(lines, domain=pyo.NonNegativeReals)
+    model.fp = pyo.Var(lines, domain=pyo.NonNegativeReals)
+    model.fm = pyo.Var(lines, domain=pyo.NonNegativeReals)
+    model.theta = pyo.Var(buses, domain=pyo.Reals)
+    model.y = pyo.Var(cross_edges, domain=pyo.Binary)
+    model.q = pyo.Var(cross_edges, domain=pyo.Reals)
+    M = {line: 3 * data["c"] for line, data in lines.items()}
 
     # Declare objective value
-    if objective == "congestion":
-        model.objective = pyo.Objective(expr=model.gamma, sense=pyo.minimize)
-    else:
-        raise ValueError(f"Objective {objective} is not valid.")
+    @model.Objective(sense=pyo.minimize)
+    def objective(m):
+        if objective == "congestion":
+            return model.gamma
+        else:
+            raise ValueError(f"Objective {objective} is not valid.")
 
     # Declare constraints
-    model.max_congestion_constraint = pyo.Constraint(
-        netdict["lines"],
-        rule=lambda m, i, j: m.gamma >= m.fabs[i, j] / netdict["lines"][(i, j)]["c"],
-    )
+    """
+    Maximum congestion and auxilliary expressions
+    """
 
-    model.outgoing_flow = pyo.Expression(
-        netdict["buses"],
-        rule=lambda m, i: sum(
-            m.fp[i, j] - m.fm[i, j]
-            for j in netdict["buses"]
-            if (i, j) in netdict["lines"]
-        ),
-    )
+    @model.Constraint(lines)
+    def max_congestion_lower_bound(m, *e):
+        return m.gamma >= m.fabs[e] / lines[e]["c"]
 
-    model.incoming_flow = pyo.Expression(
-        netdict["buses"],
-        rule=lambda m, i: sum(
-            m.fp[j, i] - m.fm[j, i]
-            for j in netdict["buses"]
-            if (j, i) in netdict["lines"]
-        ),
-    )
+    @model.Constraint(lines)
+    def absolute_flows(m, *e):
+        return m.fabs[e] == m.fp[e] + m.fm[e]
 
-    model.flow_conservation = pyo.Constraint(
-        netdict["buses"],
-        rule=lambda m, i: m.outgoing_flow[i] - m.incoming_flow[i]
-        == netdict["buses"][i]["p_mw"],
-    )
+    @model.Expression(lines)
+    def real_flow(m, *e):
+        return m.fp[e] - m.fm[e]
 
-    model.susceptance = pyo.Constraint(
-        netdict["lines"],
-        rule=lambda m, i, j: m.fp[i, j] - m.fm[i, j]
-        == netdict["lines"][(i, j)]["b"] * (m.theta[i] - m.theta[j]),
-    )
+    @model.Expression(lines)
+    def dc_flow(m, *e):
+        i, j, idx = e
+        return lines[e]["b"] * (m.theta[i] - m.theta[j])
 
-    model.abs_flows = pyo.Constraint(
-        netdict["lines"], rule=lambda m, *e: m.fabs[e] == m.fp[e] + m.fm[e]
-    )
-    model.flows_upper_bound = pyo.Constraint(
-        netdict["lines"], rule=lambda m, *e: m.fabs[e] <= netdict["lines"][e]["c"]
-    )
+    """
+    Reduced graph constraints
+    """
+
+    @model.Expression(clusters)
+    def incoming_and_outgoing_cluster_flow(m, r):
+        return sum(
+            sign * m.q[u, v, line] for (u, v, line), sign in reduced_graph.incidence(r)
+        )
+
+    @model.Constraint(clusters)
+    def commodity_flow_conservation(m, r):
+        if r == 0:
+            return m.incoming_and_outgoing_cluster_flow[r] == len(clusters) - 1
+        else:
+            return m.incoming_and_outgoing_cluster_flow[r] == -1
+
+    @model.Constraint(cross_edges)
+    def commodity_flow_upper_bound(m, *ce):
+        return m.q[ce] <= (len(clusters) - 1) * m.y[ce]
+
+    @model.Constraint(cross_edges)
+    def commodity_flow_lower_bound(m, *ce):
+        return m.q[ce] >= -(len(clusters) - 1) * m.y[ce]
+
+    @model.Constraint()
+    def reduced_graph_spanning_tree(m):
+        return sum(m.y[ce] for ce in cross_edges) == len(clusters) - 1
+
+    """
+    Relate cross edges and line switching actions
+    """
+
+    @model.Constraint(cross_edges)
+    def active_cross_edge_1(m, *ce):
+        e = tuple(ce[2:])
+        return m.real_flow[e] >= m.dc_flow[e] - (1 - m.y[ce]) * M[e]
+
+    @model.Constraint(cross_edges)
+    def active_cross_edge_2(m, *ce):
+        e = tuple(ce[2:])
+        return m.real_flow[e] <= m.dc_flow[e] + (1 - m.y[ce]) * M[e]
+
+    @model.Constraint(cross_edges)
+    def inactive_cross_edge_1(m, *ce):
+        e = tuple(ce[2:])
+        return m.real_flow[e] >= -m.y[ce] * M[e]
+
+    @model.Constraint(cross_edges)
+    def inactive_cross_edge_2(m, *ce):
+        e = tuple(ce[2:])
+        return m.real_flow[e] <= m.y[ce] * M[e]
+
+    """
+    Regular DC power flows
+    """
+
+    @model.Constraint(internal_edges)
+    def internal_edges_flow(m, *e):
+        return m.real_flow[e] == m.dc_flow[e]
+
+    @model.Expression(buses)
+    def outgoing_bus_flow(m, i):
+        return sum(m.fp[e] - m.fm[e] for e in lines if e[0] == i)
+
+    @model.Expression(buses)
+    def incoming_bus_flow(m, i):
+        return sum(m.fp[e] - m.fm[e] for e in lines if e[1] == i)
+
+    @model.Constraint(buses)
+    def flow_conservation(m, i):
+        return m.outgoing_bus_flow[i] - m.incoming_bus_flow[i] == buses[i]["p_mw"]
+
+    @model.Constraint()
+    def ref_bus(m):
+        return m.theta[0] == 0
 
     # Solve
     solver = pyo.SolverFactory("gurobi", solver_io="python")
@@ -273,11 +176,5 @@ def _milp_pyomo(P, objective="congestion", solver=""):
     print(
         f"**Solver status:** *{result.solver.status}, {result.solver.termination_condition}*"
     )
-    # display(Markdown(f"**Minimizes objective value to:** ${model.objective():.4f}$"))
 
-    # objective_value = model.objective()
-    import ipdb
-
-    ipdb.set_trace()
-
-    return 0
+    return model

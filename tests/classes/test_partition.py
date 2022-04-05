@@ -22,14 +22,14 @@ class TestPartition:
     def test_is_partition(self):
         assert self.partition.is_partition(self.G)
 
-    def test_from_clustering(self):
-        clustering = ig.Clustering(membership=[0, 0, 0, 1, 1, 2, 2, 2, 2, 2])
-        partition = Partition.from_clustering(clustering)
+    # def test_from_clustering(self):
+    #     clustering = ig.Clustering(membership=[0, 0, 0, 1, 1, 2, 2, 2, 2, 2])
+    #     partition = Partition.from_clustering(clustering)
 
-        assert all(
-            clustering.membership[v] == partition.membership[v] for v in range(10)
-        )
-        assert all(clustering[cluster] == partition[cluster] for cluster in range(3))
+    #     assert all(
+    #         clustering.membership[v] == partition.membership[v] for v in range(10)
+    #     )
+    #     assert all(clustering[cluster] == partition[cluster] for cluster in range(3))
 
     def test_is_connected_clusters(self):
         assert all(
