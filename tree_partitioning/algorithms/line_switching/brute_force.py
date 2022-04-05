@@ -1,108 +1,79 @@
-from tree_partitioning.classes import Case, Partition, Solution
+from itertools import combinations
+
+import networkx as nx
+import pandapower as pp
+
+from tree_partitioning.classes import Case, Partition, Solution, ReducedGraph
 
 
-def powerset(iterable):
-    """Computes the powerset of an iterable.
-
-    Example:
-    - powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)
-
+def brute_force(partition: Partition) -> Solution:
     """
-    s = list(iterable)
-    return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
-
-
-def EP2E(edge_P_ids, G):
-    """Maps edges from EP to E."""
-    mapper = dict()
-    name2e = {G.get_edge_data(*e)["name"]: e for e in G.edges}
-    for u, v, w in edge_P_ids:
-        mapper[(u, v, w)] = name2e[w]
-    return mapper
-
-
-def obs_brute_force(G, net, P, acpf=True, ac_options={}):
-    """Brute force the Optimal Bridge Selection problem.
-
-    :param G: networkx graph
-    :param net: pandapower network
-    :param P: partition
-    :param acpf: boolean to consider AC power flow equations
+    Solve the Line Switching Problem using brute force enumeration.
     """
+    case = Case()
+    net = case.net
+    G = case.G
+    reduced_graph = ReducedGraph(G, partition)
 
-    def _is_edges_spanning_tree(edges):
-        """Checks if the k-1 edges form a spanning tree."""
-        K = nx.Graph()
-        K.add_edges_from(edges)
-        return nx.is_tree(K)
+    # Compute all possible combinations of cross edges that could be a spanning tree
+    # Then store all the cross edges that are not part of the selected ones
+    candidates = []
+    for edges in combinations(reduced_graph.cross_edges, r=len(partition) - 1):
+        if _is_tree_graph(edges):
+            switching_lines = [
+                edge[2] for edge in reduced_graph.cross_edges if edge not in edges
+            ]
+            candidates.append(switching_lines)
 
-    rg = reduced_graph(G, P)
+    # For each of the candidate line sets, deactivate the lines in pandapower
+    # and rerun power flows to obtain congestion
+    best_lines, best_gamma = None, 100
 
-    # Describe the results
-    res = defaultdict(list)
+    for lines in candidates:
+        post_switching_net = _deactivate_lines_pp(net, lines)
+        pp.rundcpp(post_switching_net)
+        new_gamma = _max_loading_percent(post_switching_net)
 
-    # Step 1: Compute the spanning tree cross-edge combinations
-    # by considering the simple reduced graph [subtour elimination]
-    H = nx.Graph(rg)
-    feasible_combinations = []
-    for edges in combinations(H.edges, r=P.size - 1):
-        if _is_edges_spanning_tree(edges):
-            feasible_combinations.append(edges)
-    # Step 2: Compute the product of all cross-edges that belong
-    # to the feasible set of combinations
-    edge2name = defaultdict(list)
-    for e in rg.edges:
-        i, j = e[0], e[1]
-        name = rg.get_edge_data(*e)["name"]
-        edge2name[(i, j)].append(name)
+        if new_gamma < best_gamma:
+            best_lines = lines
+            best_gamma = new_gamma
 
-    all_lines = list(chain(*edge2name.values()))
-    for edges in feasible_combinations:
-        # Lines are tuples of line names that we keep
-        for lines in product(*list(map(edge2name.get, edges))):
-            # Deactive all other lines
-            other_lines = [l for l in all_lines if l not in lines]
-            net_post = deactivate_lines_pp(net, other_lines)
-            G_post = deactivate_lines_nx(G, other_lines)
-            assert verify_bbd(G_post, P)
-
-            # Calculate the power flow disruption
-            pfd = sum(
-                [
-                    G.get_edge_data(*e)["weight"]
-                    for e in G.edges
-                    if G.get_edge_data(*e)["name"] in other_lines
-                ]
-            )
-            res["power_flow_disruption"].append(pfd)
-
-            # Calculate DC congestion
-            try:
-                pp.rundcpp(net_post)
-                gamma_dc = max_loading_percent(net_post)
-            except:  # TODO: Which error should be put here?
-                gamma_dc = np.isnan
-            res["gamma_dc"].append(gamma_dc)
-
-            # Calculate AC congestion
-            if acpf:
-                try:
-                    pp.runpp(net_post)
-                    gamma_ac = max_loading_percent(net_post)
-                    print(gamma_ac)
-                    # run_julia_acpf(net_post)
-                except pp.LoadflowNotConverged:
-                    print("ACPF did not converge.")
-                    gamma_ac = np.nan
-                res["gamma_ac"].append(gamma_ac)
-
-            # print(lines)
-    return res
+    return Solution(partition, best_lines)
 
 
-def brute_force(partition: Partition):
+def _is_tree_graph(edges: list):
     """
-    Solves the Line Switching Problem using brute force
-    and returns the corresponding Tree Partition.
+    Checks whether the edges form a tree graph.
+
+    Edges should be given as a list of tuples (u, v, ...),
+    where u and v indicate the node index. All other arguments
+    are ignored.
     """
-    pass
+    graph = nx.Graph()
+    graph.add_edges_from([e[:2] for e in edges])
+    return nx.is_tree(graph)
+
+
+def _deactivate_lines_pp(net, lines):
+    """Deactivate lines of a pandapower network. """
+    # Get the line names first from the lines
+    netdict = Case().netdict
+    line_names = [netdict["lines"][line]["name"] for line in lines]
+
+    net = pp.copy.deepcopy(net)
+    net.line.loc[net.line["name"].isin(line_names), "in_service"] = False
+    net.trafo.loc[net.trafo["name"].isin(line_names), "in_service"] = False
+
+    return net
+
+
+def _max_loading_percent(net):
+    """Compute the maximum loading percent of net."""
+    gl = max(net.res_line.loading_percent) / 100
+
+    # Some cases do not have transformers
+    try:
+        gt = max(net.res_trafo.loading_percent) / 100
+    except ValueError:
+        return gl
+    return max(gl, gt)

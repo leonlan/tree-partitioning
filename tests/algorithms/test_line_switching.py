@@ -4,7 +4,7 @@ import networkx as nx
 import igraph as ig
 
 from tree_partitioning.classes import Case, Partition
-from tree_partitioning.algorithms.line_switching import milp_line_switching
+from tree_partitioning.algorithms.line_switching import milp_line_switching, brute_force
 from tree_partitioning.algorithms.partitioning import obi_main
 
 
@@ -14,12 +14,12 @@ class TestLineSwitching:
     netdict = case.netdict
     G = case.G
     igg = case.igg
-    partition = obi_main(case, k=4, method="LaplacianN")
+    partition = obi_main(case, k=2, method="LaplacianN")
 
-    def test_milp(self):
-        solution = milp_line_switching(self.partition)
-        # assert solution.is_tree_partition()
+    # def test_milp(self):
+    #     solution = milp_line_switching(self.partition)
+    #     assert solution.is_tree_partition()
 
-    # def test_brute_force(self):
-    #     tree_partition = brute_force(self.partition)
-    #     assert tree_partition.is_tree_partition(G)
+    def test_brute_force(self):
+        solution = brute_force(self.partition)
+        assert solution.is_tree_partition()

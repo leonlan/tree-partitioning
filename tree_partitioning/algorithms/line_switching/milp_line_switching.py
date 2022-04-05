@@ -124,6 +124,8 @@ def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
     Relate cross edges and line switching actions
     """
 
+    # FIXME: For some reason, cross_edges elements are flattened tuples
+    # (u, v, i, j, k) instead of (u, v, (i, j, k))
     @model.Constraint(cross_edges)
     def active_cross_edge_1(m, *ce):
         e = tuple(ce[2:])
