@@ -60,21 +60,24 @@ class Solution:
 
         ec = ["#db4c39", "#2a7afa", "#8fd46a", "#595959"]
 
+        # Undirected graph has better visuals
+        G = self.G.to_undirected()
+
         # Post-bbd partition colors
-        vertex_colors = [nc[self.partition.membership[v]] for v in self.G.nodes]
+        vertex_colors = [nc[self.partition.membership[v]] for v in G.nodes]
         fig, ax = plt.subplots(figsize=[16, 12])
-        pos = nx.kamada_kawai_layout(self.G, weight=None)
+        pos = nx.kamada_kawai_layout(G, weight=None)
 
         # Draw buses
         buses = nx.draw_networkx_nodes(
-            self.G, pos, node_size=250, node_color=vertex_colors, linewidths=2,
+            G, pos, node_size=250, node_color=vertex_colors, linewidths=2,
         )
 
         # Draw regular lines
         lines = nx.draw_networkx_edges(
-            self.G,
+            G,
             pos,
-            edgelist=[e for e in self.G.edges if list(e) not in self.switched_lines],
+            edgelist=[e for e in G.edges if list(e) not in self.switched_lines],
             arrows=False,
             width=2.5,
             edge_color="#595959",
@@ -82,9 +85,9 @@ class Solution:
 
         # Draw switched lines
         switched_lines = nx.draw_networkx_edges(
-            self.G,
+            G,
             pos,
-            edgelist=[e for e in self.G.edges if list(e) in self.switched_lines],
+            edgelist=[e for e in G.edges if list(e) in self.switched_lines],
             arrows=False,
             width=2,
             alpha=0.8,
