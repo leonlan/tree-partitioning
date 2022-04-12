@@ -1,0 +1,4 @@
+#+TITLE:Usage
+#+begin_src python
+python -m tree_partitioning <args>
+#+end_src
