@@ -1,4 +1,3 @@
-#!/usr/bin/env ipython
 import igraph as ig
 import pandas as pd
 
@@ -27,6 +26,6 @@ def _igg_from_netdict(netdict):
         ],
     )
     igg.vs["community"] = [0] * (igg.vcount())
-    igg.vs["p_mw"] = pd.DataFrame(netdict["buses"]).T.p_mw
+    igg.vs["p"] = pd.DataFrame(netdict["buses"]).T.p_mw
 
     return igg

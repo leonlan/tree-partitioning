@@ -1,4 +1,3 @@
-#!/usr/bin/env ipython
 import numpy as np
 import pandas as pd
 
@@ -105,7 +104,7 @@ def _netdict_from_pp_net(net, merge_lines):
                     "f": "sum",
                     "weight": "sum",
                     "loading_percent": "sum",
-                    "edge_index": lambda x: list(x),
+                    "edge_index": lambda x: min(list(x)),
                     "type": lambda x: list(x),
                     "index_by_type": lambda x: list(x),
                     "b": "sum",
@@ -116,6 +115,8 @@ def _netdict_from_pp_net(net, merge_lines):
             .reset_index()
         )
         dfnetwork["loading_percent"] = dfnetwork["weight"] / dfnetwork["c"] * 100
+
+    dfnetwork.sort_values(by=["edge_index"], inplace=True)
 
     lines = {
         (data["from_bus"], data["to_bus"], i): data

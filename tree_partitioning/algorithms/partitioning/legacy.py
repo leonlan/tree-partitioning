@@ -5,6 +5,7 @@ import copy
 from collections import defaultdict
 from itertools import product
 import time as time
+from copy import deepcopy
 
 import igraph as ig
 import pandas as pd
@@ -264,5 +265,6 @@ def obi_main(C, k, method):
     """Main OBI function that returns a k-partiton given some clustering method."""
     rg_sg = compute_rg_sg(C, k, methods=[method])
     P = _Partition({i: v for i, v in enumerate(rg_sg.vs["name"])})
-    Q = extend_partition(C.G, P)
+    Q = extend_partition(C.G, deepcopy(P))
+
     return Partition(Q)
