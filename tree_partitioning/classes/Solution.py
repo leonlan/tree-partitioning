@@ -77,8 +77,7 @@ class Solution:
         lines = nx.draw_networkx_edges(
             G,
             pos,
-            edgelist=[e for e in G.edges if list(e) not in self.switched_lines],
-            arrows=False,
+            edgelist=[e for e in G.edges if e not in self.switched_lines],
             width=2.5,
             edge_color="#595959",
         )
@@ -87,8 +86,7 @@ class Solution:
         switched_lines = nx.draw_networkx_edges(
             G,
             pos,
-            edgelist=[e for e in G.edges if list(e) in self.switched_lines],
-            arrows=False,
+            edgelist=[e for e in G.edges if e in self.switched_lines],
             width=2,
             alpha=0.8,
             edge_color="red",
