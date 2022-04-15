@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from itertools import combinations
 
 import networkx as nx
@@ -6,7 +8,7 @@ import pandapower as pp
 from tree_partitioning.classes import Case, Partition, Solution, ReducedGraph
 
 
-def brute_force(partition: Partition) -> Solution:
+def brute_force(partition: Partition, objective="congestion") -> Solution:
     """
     Solve the Line Switching Problem using brute force enumeration.
     """
@@ -15,13 +17,14 @@ def brute_force(partition: Partition) -> Solution:
     G = case.G
     reduced_graph = ReducedGraph(G, partition)
 
+    start = perf_counter()
     # Compute all possible combinations of cross edges that could be a spanning tree
     # Then store all the cross edges that are not part of the selected ones
     candidates = []
-    for edges in combinations(reduced_graph.cross_edges, r=len(partition) - 1):
-        if _is_tree_graph(edges):
+    for cross_edges in combinations(reduced_graph.cross_edges, r=len(partition) - 1):
+        if _is_tree_graph(reduced_graph.clusters, cross_edges):
             switching_lines = [
-                edge[2] for edge in reduced_graph.cross_edges if edge not in edges
+                edge[2] for edge in reduced_graph.cross_edges if edge not in cross_edges
             ]
             candidates.append(switching_lines)
 
@@ -41,7 +44,7 @@ def brute_force(partition: Partition) -> Solution:
     return Solution(partition, best_lines)
 
 
-def _is_tree_graph(edges: list):
+def _is_tree_graph(clusters: list[int], cross_edges: list):
     """
     Checks whether the edges form a tree graph.
 
@@ -50,7 +53,8 @@ def _is_tree_graph(edges: list):
     are ignored.
     """
     graph = nx.Graph()
-    graph.add_edges_from([e[:2] for e in edges])
+    graph.add_nodes_from(clusters)
+    graph.add_edges_from([e[:2] for e in cross_edges])
     return nx.is_tree(graph)
 
 
