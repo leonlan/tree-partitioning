@@ -41,7 +41,13 @@ def brute_force(partition: Partition, objective="congestion") -> Solution:
             best_lines = lines
             best_gamma = new_gamma
 
-    return Solution(partition, best_lines)
+        if perf_counter() - start > 300:
+            break
+
+    solution = Solution(partition, best_lines)
+    solution._best_gamma = best_gamma
+    solution._n_spanning_trees = len(candidates)
+    return solution
 
 
 def _is_tree_graph(clusters: list[int], cross_edges: list):

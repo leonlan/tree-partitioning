@@ -1,3 +1,4 @@
+import functools
 import itertools
 import os
 from pathlib import Path
@@ -62,7 +63,8 @@ class Case(metaclass=Singleton):
         return self._net, self._netdict, self._G, self._igg
 
     @classmethod
-    def from_file(cls, path, merge_lines=True, opf_init=True, ac=False):
+    @functools.lru_cache(maxsize=None)
+    def from_file(cls, path, merge_lines=False, opf_init=True, ac=False):
         cls.clear()
 
         case = cls()

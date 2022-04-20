@@ -247,4 +247,4 @@ def _compute_capacities(net, df):
     )
     c_trafo = net.trafo.sn_mva.values
     c = np.append(c_line, c_trafo)
-    return c
+    return np.array(c, dtype="int")

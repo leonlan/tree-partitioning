@@ -13,7 +13,13 @@ class Solution:
     A Solution is represented by a tree partition.
     """
 
-    def __init__(self, partition: Partition, switched_lines: list):
+    def __init__(
+        self,
+        partition: Partition,
+        switched_lines: list,
+        results: dict | None = None,
+        model=None,
+    ):
         case = Case()
         self.G = case.G
         self.net = case.net
@@ -24,17 +30,26 @@ class Solution:
         self.post_switching_graph.remove_edges_from(switched_lines)
         self.post_switching_net = _deactivate_lines_pp(self.net, switched_lines)
 
-        self._objective = None
+        if results is not None:
+            self._results = self.set_results(results)
+
+        if model:
+            self.model = model
 
     def is_tree_partition(self):
         """
         Verifies that (1) the post-switching graph is connected and
         (2) P is a tree partition of the post-switching graph.
         """
-        return (
-            nx.is_weakly_connected(self.post_switching_graph)
-            and ReducedGraph(self.post_switching_graph, self.partition).is_tree()
-        )
+        if not nx.is_weakly_connected(self.post_switching_graph):
+            print("Post_switching_graph not (weakly) connected.")
+            return False
+
+        if not ReducedGraph(self.post_switching_graph, self.partition).is_tree():
+            print("Post switching reduced graph not a tree.")
+            return False
+
+        return True
 
     @property
     def objective(self) -> float:
@@ -48,7 +63,37 @@ class Solution:
         pp.rundcpp(self.post_switching_net)
         self._objective = _max_loading_percent(self.post_switching_net)
 
-    def plot(self, path: str, show=False):
+    @property
+    def results(self):
+        """
+        Calculate solution results about partitioning and line switching actions.
+        """
+
+        # Partition
+        partitioning = {}
+        # modularity score
+        # runtime
+        # n_clusters
+        # # cross edges
+        # Fraction of cross edges
+        # # lines to be switched off
+        # clusters
+        # bridge-blocks
+        #
+        #
+
+        # Line switching
+        # #runtime
+        # #spanning trees
+        # objective
+        # # congested lines
+        # # lines to be swithced off
+        # % lines switched off
+        # power flow disruption
+        #
+        return results
+
+    def plot(self, path: str, show=False, post=False):
         nc = [
             "#ea9999",  # red
             "#a4c2f4",
@@ -66,18 +111,29 @@ class Solution:
         # Post-bbd partition colors
         vertex_colors = [nc[self.partition.membership[v]] for v in G.nodes]
         fig, ax = plt.subplots(figsize=[16, 12])
-        pos = nx.kamada_kawai_layout(G, weight=None)
-
-        # Draw buses
-        buses = nx.draw_networkx_nodes(
-            G, pos, node_size=250, node_color=vertex_colors, linewidths=2,
+        pos = nx.kamada_kawai_layout(
+            (self.post_switching_graph if post else self.G), weight=None
         )
 
+        # Draw buses
+        factor = min(1, max(0.3, 200 / len(G)))
+        buses = nx.draw_networkx_nodes(
+            G, pos, node_size=250 * factor, node_color=vertex_colors, linewidths=2,
+        )
+        nx.draw_networkx_labels(
+            G, pos, {i: str(i) for i in G.nodes}, font_size=9,
+        )
+
+        switched_lines_idx = [line_idx for _, _, line_idx in self.switched_lines]
         # Draw regular lines
         lines = nx.draw_networkx_edges(
             G,
             pos,
-            edgelist=[e for e in G.edges if e not in self.switched_lines],
+            edgelist=[
+                e
+                for *e, data in G.edges(data=True)
+                if data["edge_index"] not in switched_lines_idx
+            ],
             width=2.5,
             edge_color="#595959",
         )
@@ -86,7 +142,11 @@ class Solution:
         switched_lines = nx.draw_networkx_edges(
             G,
             pos,
-            edgelist=[e for e in G.edges if e in self.switched_lines],
+            edgelist=[
+                e
+                for *e, data in G.edges(data=True)
+                if data["edge_index"] in switched_lines_idx
+            ],
             width=2,
             alpha=0.8,
             edge_color="red",
@@ -114,6 +174,8 @@ def _deactivate_lines_pp(net, lines):
     net = pp.copy.deepcopy(net)
     net.line.loc[net.line["name"].isin(line_names), "in_service"] = False
     net.trafo.loc[net.trafo["name"].isin(line_names), "in_service"] = False
+
+    pp.rundcpp(net)
 
     return net
 

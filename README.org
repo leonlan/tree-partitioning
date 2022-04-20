@@ -38,16 +38,63 @@ A brief overview of the code:
 See the [[examples]] folder for two examples of tree partitioning.
 
 * TODOS
-** DONE Cases
-*** DONE NoMergedLines
-*** DONE MergedLines
-** TODO Partitioning
-*** Partition Class
-**** TODO FastGreedy and SC do not yet create connected clusters
 ** TODO Tree
 ** TODO Full MILP
+** TODO I dont think I need singletons
+** TODO Partitions cluster ids should be consistent (e.g., 0 for the cluster with the smallest node indices)
 ** TODO cascading failure
 ** TODO GCI
 ** TODO ST
+** TODO [#A] Fix MILP Line switching
+- GOC 793, k=5, connected clusters True
+- Milp Line Switching seems to be false
+** TODO Big-M problem
 
-** TODO [#A] Change milp =pyo.= to =model.=
+#+begin_src shell
+
+#+end_src
+* Failure
+#+begin_src python
+FAILED tests/algorithms/test_full.py::test_two_stage[f-793_goc-3-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-793_goc-4-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-793_goc-5-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-1354_pegase-5-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-1354_pegase-5-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-1888_rte-5-normalized_laplacian]
+
+FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-3-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-4-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-4-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-5-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-5-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-179_goc-5-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-179_goc-5-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-240_pserc-3-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-240_pserc-3-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-240_pserc-4-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc-4-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc-5-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc_postopf-4-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc_postopf-5-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2000_goc-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k-2-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k-2-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k_postopf-2-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k_postopf-2-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k_postopf-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2736sp_k-2-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2736sp_k-2-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2736sp_k-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2737sop_k-2-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2737sop_k-2-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2737sop_k-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wop_k-2-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wop_k-2-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wop_k-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wp_k-2-normalized_modularity]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wp_k-2-normalized_laplacian]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wp_k-2-fastgreedy]
+FAILED tests/algorithms/test_full.py::test_two_stage[f-2848_rte-2-fastgreedy]
+#+end_src

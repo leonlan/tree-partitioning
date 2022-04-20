@@ -26,6 +26,11 @@ class ReducedGraph:
         cross_edges = []
 
         for i, j, k in self.G.edges:
+
+            # if i == 6 or j == 6:
+            #     import ipdb
+
+            #     ipdb.set_trace()
             u = self.partition.membership[i]
             v = self.partition.membership[j]
 

@@ -15,7 +15,7 @@ import numpy as np
 import scipy as sp
 from scipy.spatial.distance import cdist
 
-from tree_partitioning.classes import Partition
+from tree_partitioning.classes import Partition, Case
 
 from .bridge_block_refinement import networkanalysis, spectralclustering
 
@@ -261,10 +261,23 @@ def extend_partition(G, P):
     return R
 
 
-def obi_main(C, k, method):
+def _obi_main(C, k, method):
     """Main OBI function that returns a k-partiton given some clustering method."""
     rg_sg = compute_rg_sg(C, k, methods=[method])
     P = _Partition({i: v for i, v in enumerate(rg_sg.vs["name"])})
     Q = extend_partition(C.G, deepcopy(P))
 
-    return Partition(Q)
+    # igraph produces cluster numbers that are random. To erase this randomness
+    # we always sort the partition numbering based on the smallest node idx in a cluster
+    sorted_partition = {
+        new_idx: Q[old_idx]
+        for new_idx, (old_idx, min_value) in enumerate(
+            sorted([(k, min(v)) for k, v in Q.items()], key=lambda x: x[1])
+        )
+    }
+
+    return Partition(sorted_partition)
+
+
+def obi_main(k, method="LaplacianN"):
+    return _obi_main(Case(), k, method)

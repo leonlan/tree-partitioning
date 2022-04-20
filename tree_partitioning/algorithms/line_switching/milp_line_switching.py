@@ -1,10 +1,10 @@
+import numpy as np
 import pyomo.environ as pyo
 
 from tree_partitioning.classes import (
     Case,
     Partition,
     ReducedGraph,
-    SwitchedLines,
     Solution,
 )
 
@@ -13,28 +13,42 @@ def milp_line_switching(partition: Partition, objective="congestion"):
     """
     Solves the Line Switching Problem using MILP
     and returns the corresponding Tree Partition.
-
-    Args:
-    - G: NetworkX graph
-    - P: Partition object
-    - objective: Objective function to be minimized
-        - "congestion": maximum congestion
-        - "pfd": power flow disruption
-    - solver (optional): Choice of solver defined by the pulp api
     """
-    model = _milp_solve_pyomo(partition, objective=objective)
+    model, result = _milp_solve_pyomo(partition, objective=objective)
 
-    switched_lines = SwitchedLines(
-        [line for (_, _, *line), v in model.y.items() if v() == 0]
-    )
+    if result.solver.termination_condition != "infeasible":
+        # MILP integral variables may be non-integral in the end result
+        # due to LP relaxations. We use np.isclose to extract the binary variables
+        # for switching cross edges, and assert that the number of kept lines
+        # are indeed correct.
+        switched_lines = [
+            tuple(line)
+            for (_, _, *line), v in model.y.items()
+            if np.isclose(0, v(), atol=1e-02)
+        ]
+        kept_lines = [
+            tuple(line)
+            for (_, _, *line), v in model.y.items()
+            if np.isclose(1, v(), atol=1e-02)
+        ]
 
-    return Solution(partition, switched_lines)
+        assert len(switched_lines) + len(kept_lines) == len(
+            [_ for _ in model.y.items()]
+        )
+        assert len(kept_lines) == len(partition) - 1
+
+        return Solution(partition, switched_lines, model=model)
+
+    elif result.solver.termination_condition == "infeasible":
+        raise "Infeasible"
+    # TODO: remove this in the future and raise error
+    else:
+        return Solution(partition, [], model=model)
 
 
 def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
     """
-    Solve the Line Switching Problem.
-
+    Pyomo model for LSP.
     """
     case = Case()
     netdict = case.netdict
@@ -47,6 +61,7 @@ def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
         line for line in netdict["lines"].keys() if line not in _cross_edge_lines
     ]
     ep2e = reduced_graph.cross_edge_to_line
+    k = len(clusters)
 
     # Define a model
     model = pyo.ConcreteModel(f"Line Switching Problem: Minimize {objective}")
@@ -59,7 +74,8 @@ def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
     model.theta = pyo.Var(buses, domain=pyo.Reals)
     model.y = pyo.Var(cross_edges, domain=pyo.Binary)
     model.q = pyo.Var(cross_edges, domain=pyo.Reals)
-    M = {line: 3 * data["c"] for line, data in lines.items()}
+    M = {line: 10 * data["c"] for line, data in lines.items()}
+    # M = {line: min(10000, max(20 * data["c"], 500)) for line, data in lines.items()}
 
     # Declare objective value
     @model.Objective(sense=pyo.minimize)
@@ -104,21 +120,21 @@ def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
     @model.Constraint(clusters)
     def commodity_flow_conservation(m, r):
         if r == 0:
-            return m.incoming_and_outgoing_cluster_flow[r] == len(clusters) - 1
+            return m.incoming_and_outgoing_cluster_flow[r] == k - 1
         else:
             return m.incoming_and_outgoing_cluster_flow[r] == -1
 
     @model.Constraint(cross_edges)
     def commodity_flow_upper_bound(m, *ce):
-        return m.q[ce] <= (len(clusters) - 1) * m.y[ce]
+        return m.q[ce] <= (k - 1) * m.y[ce]
 
     @model.Constraint(cross_edges)
     def commodity_flow_lower_bound(m, *ce):
-        return m.q[ce] >= -(len(clusters) - 1) * m.y[ce]
+        return m.q[ce] >= -(k - 1) * m.y[ce]
 
     @model.Constraint()
     def reduced_graph_spanning_tree(m):
-        return sum(m.y[ce] for ce in cross_edges) == len(clusters) - 1
+        return sum(m.y[ce] for ce in cross_edges) == k - 1
 
     """
     Relate cross edges and line switching actions
@@ -172,11 +188,10 @@ def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
 
     # Solve
     solver = pyo.SolverFactory("gurobi", solver_io="python")
-    result = solver.solve(model)
+    result = solver.solve(model, tee=True, options={"TimeLimit": 300})
 
     # Print solution
     print(
         f"**Solver status:** *{result.solver.status}, {result.solver.termination_condition}*"
     )
-
-    return model
+    return model, result
