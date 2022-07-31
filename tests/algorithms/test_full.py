@@ -19,16 +19,16 @@ def cases():
 
     paths = [
         # "data/pglib_opf_case14_ieee.mat",
-        # "data/pglib_opf_case24_ieee_rts.mat",
-        # "data/pglib_opf_case30_ieee.mat",
-        # "data/pglib_opf_case39_epri.mat",
-        # "data/pglib_opf_case57_ieee.mat",
-        # "data/pglib_opf_case73_ieee_rts.mat",
-        # "data/pglib_opf_case118_ieee.mat",
-        # "data/pglib_opf_case162_ieee_dtc.mat",
-        # "data/pglib_opf_case179_goc.mat",
-        # "data/pglib_opf_case200_activ.mat",
-        # "data/pglib_opf_case240_pserc.mat",
+        "data/pglib_opf_case24_ieee_rts.mat",
+        "data/pglib_opf_case30_ieee.mat",
+        "data/pglib_opf_case39_epri.mat",
+        "data/pglib_opf_case57_ieee.mat",
+        "data/pglib_opf_case73_ieee_rts.mat",
+        "data/pglib_opf_case118_ieee.mat",
+        "data/pglib_opf_case162_ieee_dtc.mat",
+        "data/pglib_opf_case179_goc.mat",
+        "data/pglib_opf_case200_activ.mat",
+        "data/pglib_opf_case240_pserc.mat",
         "data/pglib_opf_case300_ieee.mat",
         "data/pglib_opf_case500_goc.mat",
         "data/pglib_opf_case500_goc_postopf.mat",
@@ -56,7 +56,7 @@ def cases():
             part_alg,
         )
         for path in paths
-        for k in range(2, 6)
+        for k in range(5, 6)
         for part_alg in [normalized_modularity, normalized_laplacian, fastgreedy]
     ]
 

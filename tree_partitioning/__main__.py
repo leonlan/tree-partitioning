@@ -18,14 +18,14 @@ import pstats
 
 def main():
     # PARAMS
-    k = 4
+    k = 5
     objective = "congestion"
 
     # case = Case.from_file(Path("data/pglib_opf_case2737sop_k.mat"), merge_lines=False)
 
     # case = Case.from_file(Path("data/pglib_opf_case793_goc.mat"), merge_lines=False)
-    # case = Case.from_file(Path("data/pglib_opf_case118_ieee.mat"), merge_lines=False)
-    case = Case.from_file(Path("data/pglib_opf_case300_ieee.mat"), merge_lines=False)
+    case = Case.from_file(Path("data/pglib_opf_case118_ieee.mat"), merge_lines=False)
+    # case = Case.from_file(Path("data/pglib_opf_case300_ieee.mat"), merge_lines=False)
     # case = Case.from_file(Path("data/pglib_opf_case2000_goc.mat"), merge_lines=False)
     # for f in [normalized_laplacian, normalized_modularity, fastgreedy]:
     #     print(f.__name__, f(k).is_connected_clusters(case.G))

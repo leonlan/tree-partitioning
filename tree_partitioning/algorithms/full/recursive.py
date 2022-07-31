@@ -35,30 +35,35 @@ def recursive(
 
         if results:
 
-            all_results = [
-                case.name,
-                partitioning_alg.__name__,
-                res["time_partitioning"],
-                res["n_clusters"],
-                res["block_sizes"][0][:5],
-                res["cross_edges"],
-                res["cross_edges"] / len(G.edges),
-                res["#removed_lines"],
-                res["modularity"],
-                "brute_force",
-                res["time_line_switching"],
-                res["spanning_trees"],
-                res["max_cong"][0],
-                res["max_cong"][1],
-                res["block_sizes"][-1][:5],
-                res["#congested_lines"],
-                res["#removed_lines"],
-                res["#removed_lines"] / len(G.edges),
-                "recursive",
-            ]
-            with open("results.csv", "a") as fi:
-                fi.write(";".join([str(res) for res in all_results]))
-                fi.write("\n")
+            # all_results = [
+            #     case.name,
+            #     partitioning_alg.__name__,
+            #     res["time_partitioning"],
+            #     res["n_clusters"],
+            #     res["block_sizes"][0][:5],
+            #     res["cross_edges"],
+            #     res["cross_edges"] / len(G.edges),
+            #     res["#removed_lines"],
+            #     res["modularity"],
+            #     "brute_force",
+            #     res["time_line_switching"],
+            #     res["spanning_trees"],
+            #     res["max_cong"][0],
+            #     res["max_cong"][1],
+            #     res["block_sizes"][-1][:5],
+            #     res["#congested_lines"],
+            #     res["#removed_lines"],
+            #     res["#removed_lines"] / len(G.edges),
+            #     "recursive",
+            # # ]
+
+            res.to_csv(
+                "results_recursive_iterative.csv",
+                ";",
+                mode="a",
+                index=False,
+                header=False,
+            )
 
         solution = True
     except:

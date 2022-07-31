@@ -1,4 +1,5 @@
 from IPython.core.interactiveshell import InteractiveShell
+from tree_partitioning.classes import Case
 
 InteractiveShell.ast_node_interactivity = "all"
 
@@ -1243,7 +1244,7 @@ def recursivealgorithm(
             ) = bridgeblockrefinement(
                 net_temp,
                 G,
-                n_clusters,
+                2,
                 goal,
                 plotflag=plotflag,
                 method=method,
@@ -1347,29 +1348,33 @@ def recursivealgorithm(
         sum(results["#removed_lines"]),
     )
     results["n_clusters"] = results.index + 1
+    results["partitioning_method"] = method
+    results["case_name"] = Case().name
 
-    return (
-        results.groupby(lambda x: 1)
-        .agg(
-            {
-                "runtime": sum,
-                "modularity": max,
-                "max_cong": list,
-                "#congested_lines": sum,
-                "cross_edges": sum,
-                "spanning_trees": sum,
-                "#removed_lines": sum,
-                "percentage_removed_lines": sum,
-                "#active_lines": max,
-                "lbbsize": max,
-                "block_sizes": list,
-                "time_partitioning": sum,
-                "time_line_switching": sum,
-                "n_clusters": max,
-            }
-        )
-        .T.to_dict()[1]
-    )
+    # return (
+    #     results.groupby(lambda x: 1)
+    #     .agg(
+    #         {
+    #             "runtime": sum,
+    #             "modularity": max,
+    #             "max_cong": list,
+    #             "#congested_lines": sum,
+    #             "cross_edges": sum,
+    #             "spanning_trees": sum,
+    #             "#removed_lines": sum,
+    #             "percentage_removed_lines": sum,
+    #             "#active_lines": max,
+    #             "lbbsize": max,
+    #             "block_sizes": list,
+    #             "time_partitioning": sum,
+    #             "time_line_switching": sum,
+    #             "n_clusters": max,
+    #         }
+    #     )
+    #     .T.to_dict()[1]
+    # )
+
+    return results
 
 
 def greedyrecursivealgorithm(
