@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "tree-partitioning"
+version = "0.1.0"
+description = "Tree partitioning algorithms for power networks"
+authors = ["Leon Lan <leon.lanyidong@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pandas = "^1.4.3"
+pandapower = "^2.10.1"
+matplotlib = "^3.5.2"
+networkx = "^2.8.5"
+scikit-learn = "^1.1.1"
+Pyomo = "^6.4.1"
+gurobipy = "^9.5.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.2"
+black = "^22.6.0"
+flake8 = "^5.0.0"
+isort = "^5.10.1"
+pre-commit = "^2.20.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
