@@ -8,62 +8,10 @@ This repository contains a Python implementation of various tree partitioning al
 - L. Lan and A. Zocca, “Refining bridge-block decompositions through two-stage and recursive tree partitioning,” arXiv:2110.06998 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.06998
 - L. Lan and A. Zocca, “An MILP-based approach to tree partitioning with minimal power flow disruption and generator coherency constraints,” arXiv:2110.07000 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.07000
 
-* TODOS
-** TODO Tree
-** TODO Full MILP
-** TODO I dont think I need singletons
-** TODO Partitions cluster ids should be consistent (e.g., 0 for the cluster with the smallest node indices)
-** TODO cascading failure
-** TODO GCI
-** TODO ST
-** TODO [#A] Fix MILP Line switching
-- GOC 793, k=5, connected clusters True
-- Milp Line Switching seems to be false
-** TODO Big-M problem
-
-* Failure
-#+begin_src python
-FAILED tests/algorithms/test_full.py::test_two_stage[f-793_goc-3-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-793_goc-4-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-793_goc-5-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-1354_pegase-5-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-1354_pegase-5-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-1888_rte-5-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-3-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-4-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-4-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-5-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-89_pegase-5-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-179_goc-5-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-179_goc-5-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-240_pserc-3-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-240_pserc-3-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-240_pserc-4-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc-4-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc-5-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc_postopf-4-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-500_goc_postopf-5-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2000_goc-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k-2-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k-2-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k_postopf-2-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k_postopf-2-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2383wp_k_postopf-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2736sp_k-2-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2736sp_k-2-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2736sp_k-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2737sop_k-2-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2737sop_k-2-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2737sop_k-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wop_k-2-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wop_k-2-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wop_k-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wp_k-2-normalized_modularity]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wp_k-2-normalized_laplacian]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2746wp_k-2-fastgreedy]
-FAILED tests/algorithms/test_full.py::test_two_stage[f-2848_rte-2-fastgreedy]
+* Run stuff
+#+begin_src
+python -m tree_partitioning.transient_stability --max_size 1000 --min_size 118 --n_clusters 4
 #+end_src
+
 * Logbook
 - <2022-04-20 Wed> Ran all tests up to 588 today.

@@ -1,4 +1,3 @@
-#!/usr/bin/env ipython
 import igraph as ig
 import numpy as np
 import scipy
@@ -8,7 +7,7 @@ from tree_partitioning.classes import Partition
 
 
 def spectral_clustering(
-    igg, n_clusters: int, matrix: str = "Laplacian", weight: str = "weight"
+    igg, n_clusters: int, matrix: str = "LaplacianN", weight: str = "weight"
 ):
     """
     Spectral clustering functions for various matrix definitions.
