@@ -10,8 +10,15 @@ This repository contains a Python implementation of various tree partitioning al
 
 * Run stuff
 #+begin_src
-python -m tree_partitioning.transient_stability --max_size 1000 --min_size 118 --n_clusters 4
+python -m tree_partitioning.transient_stability --max_size 30 --min_size 30 --n_clusters 4
 #+end_src
 
 * Logbook
 - <2022-04-20 Wed> Ran all tests up to 588 today.
+
+* LISA
+#+begin_src shell
+module load 2020
+module load Gurobi/9.1.1-foss-2020a-Python-3.8.2
+module load Python/3.8.2-GCCcore-9.3.0
+#+end_src
