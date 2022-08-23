@@ -1,13 +1,13 @@
 import numpy as np
-import pandas as pd
-
 import pandapower as pp
 import pandapower.converter as pc
-import pandapower.networks as pn
+import pandas as pd
 
 
 def _load_pp_case(
-    path: str, opf_init: bool, ac: bool,
+    path: str,
+    opf_init: bool,
+    ac: bool,
 ):
     """
     Loads the selected test case.
