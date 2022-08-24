@@ -10,13 +10,28 @@ import pyomo.environ as pyo
 
 from tree_partitioning.classes import Case
 
-_EPS = 0.01
+_EPS = 0.001
+
+# Which TP-network to choose
+# IEEE-118
+# Run another DCOPF ( might lead to bad situation bcs congestion=1 )
+# - If TP-G congestion => 1, then run DCOPF
+# - If not, then run both with and without DCOPF
+#
+# Variants of the problem
+# - TP-TS: transient stability
+# - TP-MC-DC: minimum congestion with dc power flows
+# - Single stage / two-stage / recursive
 
 
 class Statistics:
     def __init__(self):
         self.lost_load: float = 0
         self.n_line_failures: int = 0
+        # num of generators that got readjusted throughout the cascade (track at the end)
+        # num of components in the end
+        # number of "dead" components
+        #
 
 
 def cascading_failure(G):
@@ -37,7 +52,7 @@ def cascading_failure(G):
                 overloaded.append(comp)
 
         while overloaded:
-            new_overloaded = []
+            new_components = []
 
             for component in overloaded:
                 # Find the congested lines for each overloaded component
@@ -45,18 +60,16 @@ def cascading_failure(G):
                 stats.n_line_failures += len(lines)
 
                 # Removing lines may create new components
-                comps = remove_lines(component, lines)
+                new_comps = remove_lines(component, lines)
 
                 # For every component, re-run DCPF and record lost load
-                for comp in comps:
+                for comp in new_comps:
                     comp, lost_load = dcpf(comp)
-
-                    if not dead_component(comp):
-                        new_overloaded.append(comp)
-
                     stats.lost_load += lost_load
 
-            overloaded = [comp for comp in new_overloaded if congested_lines(comp)]
+                    new_components.append(comp)
+
+            overloaded = [comp for comp in new_components if congested_lines(comp)]
 
         print(f"{stats.n_line_failures=}, {stats.lost_load=:.2f}")
         all_stats.append(stats)
@@ -186,8 +199,9 @@ def main():
         # Path("instances/pglib_opf_case2000_goc.mat"), merge_lines=True
         # Path("instances/pglib_opf_case1888_rte.mat"),
         # Path("instances/pglib_opf_case2736sp_k.mat", merge_lines=True),
-        # Path("instances/pglib_opf_case118_ieee.mat", merge_lines=True),
-        Path("instances/pglib_opf_case300_ieee.mat", merge_lines=True),
+        Path("instances/pglib_opf_case118_ieee.mat", merge_lines=True),
+        # Path("instances/pglib_opf_case300_ieee.mat", merge_lines=True),
+        # Path("instances/pglib_opf_case500_goc.mat", merge_lines=True),
     )
 
     cascading_failure(case.G)

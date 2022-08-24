@@ -1,23 +1,20 @@
 # import pulp as pl
-import igraph as ig
 import copy
 from collections import defaultdict
 from itertools import product
-
 
 import igraph as ig
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 import numpy as np
-import pandas as pd
 import pandapower as pp
 import pandapower.converter as pc
 import pandapower.networks as pn
-import sklearn
-from sklearn.cluster import SpectralClustering
+import pandas as pd
 import scipy
 import scipy.sparse
-
+import sklearn
+from sklearn.cluster import SpectralClustering
 from utils import permute_matrix
 
 
@@ -748,7 +745,9 @@ def recursivealgorithm(
         if s == 0:
             # bridge structure and congestion before any swithicing action
             pp.runpp(
-                net_temp, init="results", max_iteration=100,
+                net_temp,
+                init="results",
+                max_iteration=100,
             )
             activelines = sum(net_temp.line["in_service"] == True) + sum(
                 net_temp.trafo["in_service"] == True
@@ -1422,7 +1421,7 @@ def spectral_clustering(L, k, normalized=True):
 
     # Obtain the first k eigenvectors and normalize row norm 1
     U = v[:, :k]
-    rows = np.array([np.sqrt(np.sum(U ** 2, axis=1))]).T
+    rows = np.array([np.sqrt(np.sum(U**2, axis=1))]).T
     T = U / rows
     # breakpoint()
     # Cluster the rows
@@ -1461,7 +1460,7 @@ def constrained_spectral(L, P, normalized=False):
     v = v[:, idx]
     # Obtain the first k eigenvectors and normalize row norm 1
     X = v[:, :k]
-    rows = np.array([np.sqrt(np.sum(X ** 2, axis=1))]).T
+    rows = np.array([np.sqrt(np.sum(X**2, axis=1))]).T
     Y = X / rows
 
     # Select the centroids (generators) and the non-centroids (loads)

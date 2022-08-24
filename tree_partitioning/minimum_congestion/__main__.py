@@ -3,10 +3,10 @@ import re
 from glob import glob
 
 from tree_partitioning.classes import Case
-from tree_partitioning.gci import mst_gci
+from tree_partitioning.partitioning import normalized_modularity
 
-from .multi_stage import multi_stage
-from .single_stage import single_stage
+from .line_switching.milp_line_switching import milp_line_switching
+from .recursive import recursive
 from .two_stage import two_stage
 
 
@@ -42,36 +42,19 @@ def main():
 
         for k in range(2, args.n_clusters):
 
-            print(f"Case {case.name}, {k=}")
-            generator_groups = mst_gci(k)
-            res1 = single_stage(case, generator_groups, args.time_limit)
-            print(f"Single stage: {res1.power_flow_disruption}")
-
-            res2pfd = two_stage(
+            twostage = two_stage(
                 case,
-                generator_groups,
-                tpi_objective="power_flow_disruption",
-                time_limit=args.time_limit,
+                n_clusters=k,
+                partitioning_alg=normalized_modularity,
+                line_switching_alg=milp_line_switching,
             )
 
-            print(f"Two stage PFD: {res2pfd.power_flow_disruption}")
-
-            res2pi = two_stage(
+            rec = recursive(
                 case,
-                generator_groups,
-                tpi_objective="power_imbalance",
-                time_limit=args.time_limit,
+                n_clusters=k,
+                partitioning_alg=normalized_modularity,
+                line_switching_alg=milp_line_switching,  # this doesnt do anything
             )
-
-            print(f"Two stage PI: {res2pi.power_flow_disruption}")
-
-            # res_multi = multi_stage(
-            #     case,
-            #     generator_groups,
-            #     time_limit=args.time_limit,
-            # )
-
-            # print(f"Multi-stage: {res_multi.power_flow_disruption}")
 
 
 if __name__ == "__main__":

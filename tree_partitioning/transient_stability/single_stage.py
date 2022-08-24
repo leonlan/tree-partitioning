@@ -114,9 +114,9 @@ def single_stage_milp(case, generators, time_limit):
 
     result = solver.solve(model, tee=False, options=options)
 
-    # Print solution
-    print(
-        f"**Solver status:** *{result.solver.status}, {result.solver.termination_condition}*"
-    )
+    # # Print solution
+    # print(
+    #     f"**Solver status:** *{result.solver.status}, {result.solver.termination_condition}*"
+    # )
 
     return model, result

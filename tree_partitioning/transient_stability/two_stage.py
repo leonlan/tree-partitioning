@@ -154,9 +154,9 @@ def milp_cluster(generators, objective, time_limit):
     result = solver.solve(model, tee=False, options=options)
 
     # Print solution
-    print(
-        f"**Solver status:** *{result.solver.status}, {result.solver.termination_condition}*"
-    )
+    # print(
+    #     f"**Solver status:** *{result.solver.status}, {result.solver.termination_condition}*"
+    # )
 
     return model, result
 

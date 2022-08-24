@@ -1,12 +1,7 @@
 import numpy as np
 import pyomo.environ as pyo
 
-from tree_partitioning.classes import (
-    Case,
-    Partition,
-    ReducedGraph,
-    Solution,
-)
+from tree_partitioning.classes import Case, Partition, ReducedGraph, Solution
 
 
 def milp_line_switching(partition: Partition, objective="congestion"):

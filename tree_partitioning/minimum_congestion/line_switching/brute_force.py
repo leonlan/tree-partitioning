@@ -1,11 +1,10 @@
-from time import perf_counter
-
 from itertools import combinations
+from time import perf_counter
 
 import networkx as nx
 import pandapower as pp
 
-from tree_partitioning.classes import Case, Partition, Solution, ReducedGraph
+from tree_partitioning.classes import Case, Partition, ReducedGraph, Solution
 
 
 def brute_force(partition: Partition, objective="congestion") -> Solution:
@@ -65,7 +64,7 @@ def _is_tree_graph(clusters: list[int], cross_edges: list):
 
 
 def _deactivate_lines_pp(net, lines):
-    """Deactivate lines of a pandapower network. """
+    """Deactivate lines of a pandapower network."""
     # Get the line names first from the lines
     netdict = Case().netdict
     line_names = [netdict["lines"][line]["name"] for line in lines]

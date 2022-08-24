@@ -2,22 +2,21 @@
 Legacy functions used for the Optimal Bridge-blocks Identification (OBI).
 """
 import copy
-from collections import defaultdict
-from itertools import product
 import time as time
+from collections import defaultdict
 from copy import deepcopy
 
 import igraph as ig
-import pandas as pd
 import networkx as nx
-import pandapower as pp
 import numpy as np
-import scipy as sp
-from scipy.spatial.distance import cdist
+import pandapower as pp
+import pandas as pd
 
-from tree_partitioning.classes import Partition, Case
-
-from .bridge_block_refinement import networkanalysis, spectralclustering
+from tree_partitioning.bridge_block_refinement import (
+    networkanalysis,
+    spectralclustering,
+)
+from tree_partitioning.classes import Case, Partition
 
 
 def compute_rg_sg(C, n_clusters=4, goal="max", methods=["FastGreedy"]):
