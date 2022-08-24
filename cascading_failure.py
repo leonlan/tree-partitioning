@@ -2,6 +2,7 @@
 # Normal power injections
 # Chen: Remain within the line limit and make it lower artificially using a multiplicative factor
 # For TP: re-run OPF on new network (to make fair comparison)
+from collections import defaultdict
 from pathlib import Path
 
 import networkx as nx
@@ -25,31 +26,59 @@ _EPS = 0.001
 
 
 class Statistics:
+    """
+    Store simulation statistics for cascading failures.
+    """
+
     def __init__(self):
-        self.lost_load: float = 0
-        self.n_line_failures: int = 0
-        # num of generators that got readjusted throughout the cascade (track at the end)
-        # num of components in the end
-        # number of "dead" components
-        #
+        self.lost_load: list[float] = []
+        self.n_line_failures: list[int] = []
+        self.n_gen_adjustments: list[int] = []
+        self.n_alive_buses: list[int] = []
+        self.n_final_components: list[int] = []
+
+    def collect(
+        self,
+        lost_load,
+        n_line_failures,
+        n_gen_adjustments,
+        n_alive_buses,
+        n_final_components,
+    ):
+        self.lost_load.append(lost_load)
+        self.n_line_failures.append(n_line_failures)
+        self.n_gen_adjustments.append(n_gen_adjustments)
+        self.n_alive_buses.append(n_alive_buses)
+        self.n_final_components.append(n_final_components)
+
+    def print_stats(self):
+
+        print(
+            f"{self.lost_load[-1]=:.2f}, {self.n_line_failures[-1]=},\
+            {self.n_gen_adjustments[-1]=}, {self.n_alive_buses[-1]=}, {self.n_final_components[-1]=}"
+        )
 
 
 def cascading_failure(G):
-    all_stats = []
+    stats = Statistics()
 
     # Initiate a cascade for each possible line failure
     for line in G.edges:
-        stats = Statistics()
+        total_lost_load = 0
+        n_line_failures = 0
+        final_components = []
 
         components = remove_lines(G, [line])
         overloaded = []
 
         for component in components:
-            comp, load_shedding = dcpf(component)
-            stats.lost_load += load_shedding
+            comp, lost_load = dcpf(component)
+            total_lost_load += lost_load
 
             if congested_lines(comp):
                 overloaded.append(comp)
+            else:
+                final_components.append(comp)
 
         while overloaded:
             new_components = []
@@ -57,7 +86,7 @@ def cascading_failure(G):
             for component in overloaded:
                 # Find the congested lines for each overloaded component
                 lines = congested_lines(component)
-                stats.n_line_failures += len(lines)
+                n_line_failures += len(lines)
 
                 # Removing lines may create new components
                 new_comps = remove_lines(component, lines)
@@ -65,19 +94,63 @@ def cascading_failure(G):
                 # For every component, re-run DCPF and record lost load
                 for comp in new_comps:
                     comp, lost_load = dcpf(comp)
-                    stats.lost_load += lost_load
+                    total_lost_load += lost_load
 
                     new_components.append(comp)
 
-            overloaded = [comp for comp in new_components if congested_lines(comp)]
+            overloaded = []
 
-        print(f"{stats.n_line_failures=}, {stats.lost_load=:.2f}")
-        all_stats.append(stats)
+            for comp in new_components:
+                if congested_lines(comp):
+                    overloaded.append(comp)
+                else:
+                    final_components.append(comp)
 
-    print(f" Average line failure: {np.mean([s.n_line_failures for s in all_stats])}")
-    print(f"Average load shedding: {np.mean([s.lost_load for s in all_stats])}")
+        # Collect post-cascading failure statistics
+        n_gen_adjustments = adjusted_gens(G, final_components)
+        n_alive_buses = len(G.nodes) - sum(
+            [len(g.nodes) for g in final_components if total_generation(g) < _EPS]
+        )
+        n_final_components = len(final_components)
 
-    return all_stats
+        stats.collect(
+            total_lost_load,
+            n_line_failures,
+            n_gen_adjustments=n_gen_adjustments,
+            n_alive_buses=n_alive_buses,
+            n_final_components=n_final_components,
+        )
+
+        stats.print_stats()
+
+    return stats
+
+
+def total_generation(G):
+    return sum(
+        [-power for power in nx.get_node_attributes(G, "p_mw").values() if power < 0]
+    )
+
+
+def adjusted_gens(G, final_components):
+    """
+    Computes the number of adjusted generators given the initial graph G and
+    the final components. We look at the original power injection and the
+    post-CF power injections.
+    """
+    original = nx.get_node_attributes(G, "p_mw")
+
+    # Dead buses by default have zero p_mw
+    new = defaultdict(float)
+    for component in final_components:
+        new.update(nx.get_node_attributes(component, "p_mw"))
+
+    adjustments = 0
+    for bus in original.keys():
+        if original[bus] < 0:  # Negative p_mw indicates generation
+            adjustments += 1 if abs(original[bus] - new[bus]) > _EPS else 0
+
+    return adjustments
 
 
 def congested_lines(G):
