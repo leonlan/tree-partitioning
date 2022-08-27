@@ -1,3 +1,4 @@
+from collections import defaultdict
 from time import perf_counter
 
 import pyomo.environ as pyo
@@ -9,12 +10,17 @@ def single_stage(case, generators, time_limit):
 
     start = perf_counter()
     model, _ = single_stage_milp(case, generators, time_limit)
+    end = perf_counter() - start
 
     return Result(
+        case=case.name,
+        n_clusters=len(generators),
+        generator_sizes=[len(v) for v in generators.values()],
         power_flow_disruption=model.objective(),
-        runtime=perf_counter() - start,
-        partition=None,  # TODO
-        n_switched_lines=None,  # TODO
+        runtime=end,
+        n_switched_lines=get_n_switched_lines(model),
+        cluster_sizes=get_cluster_sizes(model),
+        algorithm="Single stage",
     )
 
 
@@ -120,3 +126,23 @@ def single_stage_milp(case, generators, time_limit):
     # )
 
     return model, result
+
+
+def get_cluster_sizes(model):
+    cluster_sizes = defaultdict(int)
+
+    for (_, cluster), val in model.assign_bus.items():
+        if round(val()) == 1:
+            cluster_sizes[cluster] += 1
+
+    return list(cluster_sizes.values())
+
+
+def get_n_switched_lines(model):
+    res = 0
+
+    for _, val in model.active_line.items():
+        if round(val()) == 1:
+            res += 1
+
+    return res

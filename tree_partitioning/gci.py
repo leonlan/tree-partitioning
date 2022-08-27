@@ -11,7 +11,7 @@ import networkx as nx
 
 from tree_partitioning.classes import Case
 
-_DELTA = 0.2
+_DELTA = 0.3
 
 
 def mst_gci(n_clusters: int):
@@ -57,7 +57,6 @@ def mst_gci(n_clusters: int):
             if idx in component:
                 generator_groups[cluster_idx].append(idx)
 
-    print([len(v) for v in generator_groups.values()])
     return generator_groups
 
 

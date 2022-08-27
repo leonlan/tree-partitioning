@@ -18,14 +18,18 @@ def two_stage(case, generators, tpi_objective="power_flow_disruption", time_limi
     model, _ = milp_cluster(generators, tpi_objective, time_limit)
     partition = model2partition(model)
     rg = ReducedGraph(case.G, partition).RG.to_undirected()
-
     cost = spanning_tree(case.G, partition)
+    end = perf_counter() - start
 
     return Result(
+        case=case.name,
+        n_clusters=len(generators),
+        generator_sizes=[len(v) for v in generators.values()],
         power_flow_disruption=cost,
-        runtime=perf_counter() - start,
+        runtime=end,
         n_switched_lines=len(rg.edges()) - (len(generators) - 1),
-        partition=partition,
+        cluster_sizes=[len(v) for v in partition.clusters.values()],
+        algorithm=f"2-stage-{tpi_objective}",
     )
 
 
