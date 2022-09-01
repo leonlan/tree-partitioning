@@ -15,4 +15,5 @@ module load Python/3.9.5-GCCcore-10.3.0
 
 echo start of job
 ./jobscripts/run-ts 600 2300 6 ts-600-2300.txt
+poetry run python -m tree_partitioning.transient_stability --time_limit 1200 --min_size 600 --max_size 2300 --n_clusters 6 --results_path 600-2300.txt
 echo end of job
