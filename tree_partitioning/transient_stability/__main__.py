@@ -61,8 +61,9 @@ def main():
                         )
                         fi.write(res2pfd.to_csv())
 
-                    except:
+                    except Exception as e:
                         print(f"Failure: {case.name} - two stage")
+                        print(e)
 
                 print(f"{case.name} finished")
 
