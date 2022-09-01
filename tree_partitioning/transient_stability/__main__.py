@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument("--time_limit", type=int, default=300)
     parser.add_argument("--n_clusters", type=int, default=4)
     parser.add_argument("--max_size", type=int, default=30)
-    parser.add_argument("--min_size", type=int, default=80)
+    parser.add_argument("--min_size", type=int, default=30)
     parser.add_argument("--results_path", type=str, default="results.txt")
 
     return parser.parse_args()
@@ -40,20 +40,32 @@ def main():
             if n < args.min_size or n > args.max_size:
                 continue
 
-            case = Case.from_file(path, merge_lines=True)
+            try:
+                case = Case.from_file(path, merge_lines=True)
 
-            for k in range(2, args.n_clusters):
-                generator_groups = mst_gci(k)
-                res1 = single_stage(case, generator_groups, args.time_limit)
-                fi.write(res1.to_csv())
+                for k in range(2, args.n_clusters):
+                    generator_groups = mst_gci(k)
 
-                res2pfd = two_stage(
-                    case,
-                    generator_groups,
-                    tpi_objective="power_flow_disruption",
-                    time_limit=args.time_limit,
-                )
-                fi.write(res2pfd.to_csv())
+                    try:
+                        res1 = single_stage(case, generator_groups, args.time_limit)
+                        fi.write(res1.to_csv())
+                    except:
+                        print(f"Failure: {case.name} - single stage")
+
+                    try:
+                        res2pfd = two_stage(
+                            case,
+                            generator_groups,
+                            tpi_objective="power_flow_disruption",
+                            time_limit=args.time_limit,
+                        )
+                        fi.write(res2pfd.to_csv())
+
+                    except:
+                        print(f"Failure: {case.name} - two stage")
+
+            except:
+                print(f"Failure: {path}")
 
 
 if __name__ == "__main__":

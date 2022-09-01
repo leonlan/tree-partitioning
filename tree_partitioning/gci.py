@@ -11,7 +11,7 @@ import networkx as nx
 
 from tree_partitioning.classes import Case
 
-_DELTA = 0.3
+_DELTA = 0.15
 
 
 def mst_gci(n_clusters: int):
@@ -31,7 +31,6 @@ def mst_gci(n_clusters: int):
     for _ in range(n_clusters - 1):
         components = [cc for cc in nx.algorithms.connected_components(T)]
         largest_cc = nx.Graph(T.subgraph(max(components, key=len)))
-        cc_size = len(largest_cc)
         cc_gens = sum([1 for gen in gen_idcs if gen in largest_cc])
 
         # TODO select edge with best_ratio

@@ -11,6 +11,10 @@ class Result:
     runtime_total: float
     runtime_line_switching: float
     runtime_partitioning: float
+    mip_gap_single_stage: float
+    mip_gap_partitioning_stage: float
+    mip_gap_line_switching_stage: float
+    n_cross_edges: int
     n_switched_lines: int
     cluster_sizes: List[int]
     pre_max_congestion: float
@@ -26,6 +30,10 @@ class Result:
             self.runtime_total,
             self.runtime_line_switching,
             self.runtime_partitioning,
+            self.mip_gap_single_stage,
+            self.mip_gap_partitioning_stage,
+            self.mip_gap_line_switching_stage,
+            self.n_cross_edges,
             self.n_switched_lines,
             self.cluster_sizes,
             self.pre_max_congestion,

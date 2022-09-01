@@ -17,7 +17,7 @@ def two_stage(case, generators, tpi_objective="power_flow_disruption", time_limi
     two-stage MILP+MST approach.
     """
     start_partitioning = perf_counter()
-    model, _ = milp_cluster(generators, tpi_objective, time_limit)
+    model, result = milp_cluster(generators, tpi_objective, time_limit)
     partition = model2partition(model)
     time_partitioning = perf_counter() - start_partitioning
     rg = ReducedGraph(case.G, partition).RG.to_undirected()
@@ -27,7 +27,11 @@ def two_stage(case, generators, tpi_objective="power_flow_disruption", time_limi
     time_line_switching = perf_counter() - start_line_switching
 
     G_pre = case.G
-    G_post = remove_lines(dcpf(G_pre)[0], lines)[0]
+    G_post = dcpf(remove_lines(G_pre, lines)[0])[0]
+
+    # Post-switching graph assertions
+    assert len(G_pre.edges) == len(G_post.edges) + len(lines)
+    assert nx.algorithms.components.is_weakly_connected(G_post)
 
     return Result(
         case=case.name,
@@ -37,6 +41,13 @@ def two_stage(case, generators, tpi_objective="power_flow_disruption", time_limi
         runtime_total=time_partitioning + time_line_switching,
         runtime_partitioning=time_partitioning,
         runtime_line_switching=time_line_switching,
+        mip_gap_single_stage=None,
+        mip_gap_partitioning_stage=(
+            result.problem.upper_bound - result.problem.lower_bound
+        )
+        / result.problem.upper_bound,
+        mip_gap_line_switching_stage=None,
+        n_cross_edges=len(rg.edges()),
         n_switched_lines=len(rg.edges()) - (len(generators) - 1),
         cluster_sizes=[len(v) for v in partition.clusters.values()],
         pre_max_congestion=maximum_congestion(G_pre),
