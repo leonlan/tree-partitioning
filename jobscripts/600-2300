@@ -5,15 +5,11 @@
 #SBATCH -t 8:00:00
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=l.lan@vu.nl
-echo start of job
-module load 2020
-module load Python/3.8.2-GCCcore-9.3.0
-module load Gurobi/9.1.1-foss-2020a-Python-3.8.2
+LANG=en_US.UTF-8
 
 module load 2021
 module load Python/3.9.5-GCCcore-10.3.0
 
 echo start of job
-./jobscripts/run-ts 600 2300 6 ts-600-2300.txt
 poetry run python -m tree_partitioning.transient_stability --time_limit 1200 --min_size 600 --max_size 2300 --n_clusters 6 --results_path 600-2300.txt
 echo end of job

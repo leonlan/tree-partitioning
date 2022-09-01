@@ -64,6 +64,8 @@ def main():
                     except:
                         print(f"Failure: {case.name} - two stage")
 
+                print(f"{case.name} finished")
+
             except:
                 print(f"Failure: {path}")
 
