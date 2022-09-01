@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --partition=normal
+#SBATCH --constraint=silver_4110
+#SBATCH --nodes 1
+#SBATCH -t 8:00:00
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=l.lan@vu.nl
+echo start of job
+module load 2020
+module load Python/3.8.2-GCCcore-9.3.0
+module load Gurobi/9.1.1-foss-2020a-Python-3.8.2
+
+module load 2021
+module load Python/3.9.5-GCCcore-10.3.0
+
+echo start of job
+./jobscripts/run-ts 30 600 6 ts-30-600.txt
+echo end of job

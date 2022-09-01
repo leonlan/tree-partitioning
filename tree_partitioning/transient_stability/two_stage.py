@@ -5,6 +5,8 @@ import networkx as nx
 import pyomo.environ as pyo
 
 from tree_partitioning.classes import Case, Partition, ReducedGraph
+from tree_partitioning.dcpf import dcpf
+from tree_partitioning.utils import maximum_congestion, remove_lines
 
 from .Result import Result
 
@@ -14,21 +16,31 @@ def two_stage(case, generators, tpi_objective="power_flow_disruption", time_limi
     Solve the tree partitioning problem minimizing transient problem using the
     two-stage MILP+MST approach.
     """
-    start = perf_counter()
+    start_partitioning = perf_counter()
     model, _ = milp_cluster(generators, tpi_objective, time_limit)
     partition = model2partition(model)
+    time_partitioning = perf_counter() - start_partitioning
     rg = ReducedGraph(case.G, partition).RG.to_undirected()
-    cost = spanning_tree(case.G, partition)
-    end = perf_counter() - start
+
+    start_line_switching = perf_counter()
+    cost, lines = spanning_tree(case.G, partition)
+    time_line_switching = perf_counter() - start_line_switching
+
+    G_pre = case.G
+    G_post = remove_lines(dcpf(G_pre)[0], lines)[0]
 
     return Result(
         case=case.name,
         n_clusters=len(generators),
         generator_sizes=[len(v) for v in generators.values()],
         power_flow_disruption=cost,
-        runtime=end,
+        runtime_total=time_partitioning + time_line_switching,
+        runtime_partitioning=time_partitioning,
+        runtime_line_switching=time_line_switching,
         n_switched_lines=len(rg.edges()) - (len(generators) - 1),
         cluster_sizes=[len(v) for v in partition.clusters.values()],
+        pre_max_congestion=maximum_congestion(G_pre),
+        post_max_congestion=maximum_congestion(G_post),
         algorithm=f"2-stage-{tpi_objective}",
     )
 
@@ -179,7 +191,7 @@ def model2partition(model):
 
 def spanning_tree(G, partition):
     """
-    Find the maximum spanning tree.
+    Find the maximum spanning tree. Return the cost and the edges of the MST.
     """
     # MST only works on undirected graphs
     rg = ReducedGraph(G, partition).RG.to_undirected()
@@ -194,4 +206,7 @@ def spanning_tree(G, partition):
     cost = abs(sum(nx.get_edge_attributes(rg, "neg_weight").values()))
     cost -= abs(sum(nx.get_edge_attributes(T, "neg_weight").values()))
 
-    return cost
+    # Switched lines (not in T)
+    lines = [e for (u, v, (e)) in rg.edges if (u, v, (e)) not in T.edges]
+
+    return cost, lines

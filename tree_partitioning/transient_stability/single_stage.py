@@ -3,6 +3,9 @@ from time import perf_counter
 
 import pyomo.environ as pyo
 
+from tree_partitioning.dcpf import dcpf
+from tree_partitioning.utils import maximum_congestion, remove_lines
+
 from .Result import Result
 
 
@@ -11,16 +14,23 @@ def single_stage(case, generators, time_limit):
     start = perf_counter()
     model, _ = single_stage_milp(case, generators, time_limit)
     end = perf_counter() - start
+    G_pre = case.G
+    lines = get_switched_lines(model)
+    G_post = remove_lines(dcpf(G_pre)[0], lines)[0]
 
     return Result(
         case=case.name,
         n_clusters=len(generators),
         generator_sizes=[len(v) for v in generators.values()],
         power_flow_disruption=model.objective(),
-        runtime=end,
-        n_switched_lines=get_n_switched_lines(model),
+        runtime_total=end,
+        runtime_line_switching=0,
+        runtime_partitioning=0,
+        n_switched_lines=len(get_switched_lines(model)),
         cluster_sizes=get_cluster_sizes(model),
-        algorithm="Single stage",
+        pre_max_congestion=maximum_congestion(G_pre),
+        post_max_congestion=maximum_congestion(G_post),
+        algorithm="single stage",
     )
 
 
@@ -118,7 +128,7 @@ def single_stage_milp(case, generators, time_limit):
     options = {}
     options["TimeLimit"] = time_limit
 
-    result = solver.solve(model, tee=False, options=options)
+    result = solver.solve(model, tee=True, options=options)
 
     # # Print solution
     # print(
@@ -138,11 +148,11 @@ def get_cluster_sizes(model):
     return list(cluster_sizes.values())
 
 
-def get_n_switched_lines(model):
-    res = 0
+def get_switched_lines(model):
+    lines = []
 
-    for _, val in model.active_line.items():
-        if round(val()) == 1:
-            res += 1
+    for line, val in model.active_line.items():
+        if round(val()) == 0:
+            lines.append(line)
 
-    return res
+    return lines

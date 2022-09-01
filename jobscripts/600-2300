@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=normal
 #SBATCH --constraint=silver_4110
-#SBATCH --nodes 2
+#SBATCH --nodes 1
 #SBATCH -t 8:00:00
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=l.lan@vu.nl
@@ -13,9 +13,6 @@ module load Gurobi/9.1.1-foss-2020a-Python-3.8.2
 module load 2021
 module load Python/3.9.5-GCCcore-10.3.0
 
-NPROC=`nproc --all`
-echo $NPROC
 echo start of job
-poetry run python -m tree_partitioning.transient_stability --time_limit 600 --min_size 2201 --max_size 3000 --n_clusters 6 --results_path '2201-3000.txt'
-echo end of job
+./jobscripts/run-ts 600 2300 6 ts-600-2300.txt
 echo end of job

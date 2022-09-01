@@ -15,8 +15,8 @@ def parse_args():
     parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
     parser.add_argument("--time_limit", type=int, default=300)
     parser.add_argument("--n_clusters", type=int, default=4)
-    parser.add_argument("--max_size", type=int, default=1000)
-    parser.add_argument("--min_size", type=int, default=30)
+    parser.add_argument("--max_size", type=int, default=30)
+    parser.add_argument("--min_size", type=int, default=80)
     parser.add_argument("--results_path", type=str, default="results.txt")
 
     return parser.parse_args()
@@ -54,16 +54,6 @@ def main():
                     time_limit=args.time_limit,
                 )
                 fi.write(res2pfd.to_csv())
-
-                res2pi = two_stage(
-                    case,
-                    generator_groups,
-                    tpi_objective="power_imbalance",
-                    time_limit=args.time_limit,
-                )
-                fi.write(res2pi.to_csv())
-
-                print(f"Two stage PI: {res2pi.power_flow_disruption}")
 
 
 if __name__ == "__main__":

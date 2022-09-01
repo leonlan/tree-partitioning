@@ -15,7 +15,7 @@ def parse_args():
     parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
     parser.add_argument("--time_limit", type=int, default=300)
     parser.add_argument("--n_clusters", type=int, default=4)
-    parser.add_argument("--max_size", type=int, default=1000)
+    parser.add_argument("--max_size", type=int, default=100)
     parser.add_argument("--min_size", type=int, default=30)
 
     return parser.parse_args()
