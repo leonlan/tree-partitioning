@@ -4,7 +4,7 @@ from time import perf_counter
 import networkx as nx
 
 from tree_partitioning.dcpf import dcpf
-from tree_partitioning.single_stage import single_stage_transient_stability
+from tree_partitioning.single_stage import transient_stability as single_stage_ts
 from tree_partitioning.utils import maximum_congestion, remove_lines
 
 from .Result import Result
@@ -13,7 +13,7 @@ from .Result import Result
 def single_stage(case, generators, time_limit):
 
     start = perf_counter()
-    model, result = single_stage_transient_stability(case, generators, time_limit)
+    model, result = single_stage_ts(case, generators, time_limit)
     end = perf_counter() - start
     G_pre = case.G
     lines = get_switched_lines(model)

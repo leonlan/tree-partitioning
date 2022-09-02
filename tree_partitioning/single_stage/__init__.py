@@ -1,1 +1,1 @@
-from .transient_stability import single_stage_transient_stability
+from .transient_stability import transient_stability
