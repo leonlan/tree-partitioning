@@ -4,12 +4,12 @@ import pyomo.environ as pyo
 from tree_partitioning.classes import Case, Partition, ReducedGraph, Solution
 
 
-def milp_line_switching(partition: Partition, objective="congestion"):
+def milp_line_switching(case, partition: Partition, objective="congestion"):
     """
     Solves the Line Switching Problem using MILP
     and returns the corresponding Tree Partition.
     """
-    model, result = _milp_solve_pyomo(partition, objective=objective)
+    model, result = _milp_solve_pyomo(case, partition, objective=objective)
 
     if result.solver.termination_condition != "infeasible":
         # MILP integral variables may be non-integral in the end result
@@ -32,7 +32,7 @@ def milp_line_switching(partition: Partition, objective="congestion"):
         )
         assert len(kept_lines) == len(partition) - 1
 
-        return Solution(partition, switched_lines, model=model)
+        return Solution(case, partition, switched_lines, model=model)
 
     elif result.solver.termination_condition == "infeasible":
         raise "Infeasible"
@@ -41,11 +41,10 @@ def milp_line_switching(partition: Partition, objective="congestion"):
         return Solution(partition, [], model=model)
 
 
-def _milp_solve_pyomo(partition: Partition, objective: str = "congestion"):
+def _milp_solve_pyomo(case, partition: Partition, objective: str = "congestion"):
     """
     Pyomo model for LSP.
     """
-    case = Case()
     netdict = case.netdict
     buses, lines = netdict["buses"], netdict["lines"]
     reduced_graph = ReducedGraph(case.G, partition)

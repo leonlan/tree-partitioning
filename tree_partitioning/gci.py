@@ -14,13 +14,12 @@ from tree_partitioning.classes import Case
 _DELTA = 0.15
 
 
-def mst_gci(n_clusters: int):
+def mst_gci(case, n_clusters: int):
     """
     Find coherent generator groups using a minimum spanning tree algorithm.
     The identified MST is split iteratively such that each subtree contains
     a generator group of reasonable size.
     """
-    case = Case()
     G = nx.Graph(case.G)
     T = nx.tree.minimum_spanning_tree(G)
 

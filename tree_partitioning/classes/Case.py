@@ -6,16 +6,15 @@ from pathlib import Path
 import igraph as ig
 import networkx as nx
 import numpy as np
-import pandas as pd
 import pandapower as pp
+import pandas as pd
 
-from .Singleton import Singleton
-from ._pp_utils import _load_pp_case, _netdict_from_pp_net
-from ._nx_utils import _G_from_netdict
 from ._ig_utils import _igg_from_netdict
+from ._nx_utils import _G_from_netdict
+from ._pp_utils import _load_pp_case, _netdict_from_pp_net
 
 
-class Case(metaclass=Singleton):
+class Case:
     """
     Case instance of a single power network.
 
@@ -65,8 +64,6 @@ class Case(metaclass=Singleton):
     @classmethod
     @functools.lru_cache(maxsize=None)
     def from_file(cls, path, merge_lines=False, opf_init=True, ac=False):
-        cls.clear()
-
         case = cls()
         case._name = str(path).split("pglib_opf_")[-1].split(".mat")[0]
         case._net = _load_pp_case(path, opf_init, ac)

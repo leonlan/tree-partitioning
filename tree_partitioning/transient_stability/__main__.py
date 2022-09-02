@@ -44,7 +44,7 @@ def main():
                 case = Case.from_file(path, merge_lines=True)
 
                 for k in range(2, args.n_clusters):
-                    generator_groups = mst_gci(k)
+                    generator_groups = mst_gci(case, k)
 
                     try:
                         res1 = single_stage(case, generator_groups, args.time_limit)

@@ -44,7 +44,7 @@ def main():
 
         for k in range(2, args.n_clusters):
 
-            generator_groups = mst_gci(k)
+            generator_groups = mst_gci(case, k)
             twostage_pfd = two_stage(
                 case,
                 n_clusters=k,

@@ -15,12 +15,12 @@ class Solution:
 
     def __init__(
         self,
+        case: Case,
         partition: Partition,
         switched_lines: list,
         results: dict | None = None,
         model=None,
     ):
-        case = Case()
         self.G = case.G
         self.net = case.net
         self.partition = partition
@@ -28,7 +28,7 @@ class Solution:
 
         self.post_switching_graph = self.G.copy()
         self.post_switching_graph.remove_edges_from(switched_lines)
-        self.post_switching_net = _deactivate_lines_pp(self.net, switched_lines)
+        self.post_switching_net = _deactivate_lines_pp(case, self.net, switched_lines)
 
         if results is not None:
             self._results = self.set_results(results)
@@ -118,10 +118,17 @@ class Solution:
         # Draw buses
         factor = min(1, max(0.3, 200 / len(G)))
         buses = nx.draw_networkx_nodes(
-            G, pos, node_size=250 * factor, node_color=vertex_colors, linewidths=2,
+            G,
+            pos,
+            node_size=250 * factor,
+            node_color=vertex_colors,
+            linewidths=2,
         )
         nx.draw_networkx_labels(
-            G, pos, {i: str(i) for i in G.nodes}, font_size=9,
+            G,
+            pos,
+            {i: str(i) for i in G.nodes},
+            font_size=9,
         )
 
         switched_lines_idx = [line_idx for _, _, line_idx in self.switched_lines]
@@ -165,10 +172,10 @@ class Solution:
 
 
 # FIXME: NOT DRY: also used in brute_force
-def _deactivate_lines_pp(net, lines):
-    """Deactivate lines of a pandapower network. """
+def _deactivate_lines_pp(case, net, lines):
+    """Deactivate lines of a pandapower network."""
     # Get the line names first from the lines
-    netdict = Case().netdict
+    netdict = case.netdict
     line_names = [netdict["lines"][line]["name"] for line in lines]
 
     net = pp.copy.deepcopy(net)

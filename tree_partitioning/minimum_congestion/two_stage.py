@@ -22,7 +22,7 @@ def two_stage(
     assert partition.is_connected_clusters(case.G)
     end = perf_counter() - start
 
-    solution = line_switching_alg(partition, objective="congestion")
+    solution = line_switching_alg(case, partition, objective="congestion")
 
     return solution
 

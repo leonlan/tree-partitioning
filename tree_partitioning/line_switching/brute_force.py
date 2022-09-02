@@ -8,11 +8,10 @@ import pandapower as pp
 from tree_partitioning.classes import Case, Partition, ReducedGraph, Solution
 
 
-def brute_force(partition: Partition, objective="congestion") -> Solution:
+def brute_force(case, partition: Partition, objective="congestion") -> Solution:
     """
     Solve the Line Switching Problem using brute force enumeration.
     """
-    case = Case()
     net = case.net
     G = case.G
     reduced_graph = ReducedGraph(G, partition)
