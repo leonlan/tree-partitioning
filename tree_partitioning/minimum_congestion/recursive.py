@@ -3,8 +3,7 @@ from __future__ import annotations
 from typing import Callable
 
 from tree_partitioning.classes import Partition, Solution
-
-from .line_switching import brute_force, milp_line_switching
+from tree_partitioning.line_switching import brute_force, milp_line_switching
 
 
 def recursive(

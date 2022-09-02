@@ -1,5 +1,6 @@
 from itertools import combinations
 from time import perf_counter
+from typing import List
 
 import networkx as nx
 import pandapower as pp
@@ -49,7 +50,7 @@ def brute_force(partition: Partition, objective="congestion") -> Solution:
     return solution
 
 
-def _is_tree_graph(clusters: list[int], cross_edges: list):
+def _is_tree_graph(clusters: List[int], cross_edges: list):
     """
     Checks whether the edges form a tree graph.
 

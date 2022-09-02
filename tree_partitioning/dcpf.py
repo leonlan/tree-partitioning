@@ -35,10 +35,10 @@ def dcpf(G):
         model.no_load_shedding = pyo.Constraint(expr=model.load_shedding == 1)
 
     # Declare objective value
-    @model.Objective(sense=pyo.minimize)
+    @model.Objective(sense=pyo.maximize)
     def objective(m):
         """
-        Minimize the gen adjustment or load shedding needed to get to a
+        Maximize the gen adjustment or load shedding needed to get to a
         convergent solution.
         """
         return m.gen_adjustment + m.load_shedding

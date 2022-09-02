@@ -9,8 +9,8 @@ class Result:
     generator_sizes: List[int]
     power_flow_disruption: float
     runtime_total: float
-    runtime_line_switching: float
     runtime_partitioning: float
+    runtime_line_switching: float
     mip_gap_single_stage: float
     mip_gap_partitioning_stage: float
     mip_gap_line_switching_stage: float
@@ -28,8 +28,8 @@ class Result:
             self.generator_sizes,
             self.power_flow_disruption,
             self.runtime_total,
-            self.runtime_line_switching,
             self.runtime_partitioning,
+            self.runtime_line_switching,
             self.mip_gap_single_stage,
             self.mip_gap_partitioning_stage,
             self.mip_gap_line_switching_stage,

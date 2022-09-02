@@ -3,9 +3,10 @@ import re
 from glob import glob
 
 from tree_partitioning.classes import Case
-from tree_partitioning.partitioning import normalized_modularity
+from tree_partitioning.gci import mst_gci
+from tree_partitioning.line_switching.milp_line_switching import milp_line_switching
+from tree_partitioning.partitioning import milp_cluster, model2partition
 
-from .line_switching.milp_line_switching import milp_line_switching
 from .recursive import recursive
 from .two_stage import two_stage
 
@@ -17,6 +18,7 @@ def parse_args():
     parser.add_argument("--n_clusters", type=int, default=4)
     parser.add_argument("--max_size", type=int, default=100)
     parser.add_argument("--min_size", type=int, default=30)
+    parser.add_argument("--results_path", type=str, default="results.txt")
 
     return parser.parse_args()
 
@@ -42,18 +44,27 @@ def main():
 
         for k in range(2, args.n_clusters):
 
-            twostage = two_stage(
+            generator_groups = mst_gci(k)
+            twostage_pfd = two_stage(
                 case,
                 n_clusters=k,
-                partitioning_alg=normalized_modularity,
+                partitioning_alg=lambda: model2partition(
+                    milp_cluster(
+                        case, generator_groups, "power_flow_disruption", args.time_limit
+                    )[0]
+                ),
                 line_switching_alg=milp_line_switching,
             )
 
-            rec = recursive(
+            twostage_pi = two_stage(
                 case,
                 n_clusters=k,
-                partitioning_alg=normalized_modularity,
-                line_switching_alg=milp_line_switching,  # this doesnt do anything
+                partitioning_alg=lambda: model2partition(
+                    milp_cluster(
+                        case, generator_groups, "power_imbalance", args.time_limit
+                    )[0]
+                ),
+                line_switching_alg=milp_line_switching,
             )
 
 
