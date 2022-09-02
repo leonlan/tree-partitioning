@@ -43,29 +43,36 @@ def main():
         case = Case.from_file(path, merge_lines=True)
 
         for k in range(2, args.n_clusters):
+            print(f"{case.name=} and {k=}")
 
-            generator_groups = mst_gci(case, k)
-            twostage_pfd = two_stage(
-                case,
-                n_clusters=k,
-                partitioning_alg=lambda: model2partition(
-                    milp_cluster(
-                        case, generator_groups, "power_flow_disruption", args.time_limit
-                    )[0]
-                ),
-                line_switching_alg=milp_line_switching,
-            )
+            try:
+                generator_groups = mst_gci(case, k)
+                twostage_pfd = two_stage(
+                    case,
+                    n_clusters=k,
+                    partitioning_alg=lambda: model2partition(
+                        milp_cluster(
+                            case,
+                            generator_groups,
+                            "power_flow_disruption",
+                            args.time_limit,
+                        )[0]
+                    ),
+                    line_switching_alg=milp_line_switching,
+                )
 
-            twostage_pi = two_stage(
-                case,
-                n_clusters=k,
-                partitioning_alg=lambda: model2partition(
-                    milp_cluster(
-                        case, generator_groups, "power_imbalance", args.time_limit
-                    )[0]
-                ),
-                line_switching_alg=milp_line_switching,
-            )
+                twostage_pi = two_stage(
+                    case,
+                    n_clusters=k,
+                    partitioning_alg=lambda: model2partition(
+                        milp_cluster(
+                            case, generator_groups, "power_imbalance", args.time_limit
+                        )[0]
+                    ),
+                    line_switching_alg=milp_line_switching,
+                )
+            except Exception as e:
+                print(e)
 
 
 if __name__ == "__main__":

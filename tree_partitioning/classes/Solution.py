@@ -175,8 +175,7 @@ class Solution:
 def _deactivate_lines_pp(case, net, lines):
     """Deactivate lines of a pandapower network."""
     # Get the line names first from the lines
-    netdict = case.netdict
-    line_names = [netdict["lines"][line]["name"] for line in lines]
+    line_names = [case.G.edges[line]["name"] for line in lines]
 
     net = pp.copy.deepcopy(net)
     net.line.loc[net.line["name"].isin(line_names), "in_service"] = False

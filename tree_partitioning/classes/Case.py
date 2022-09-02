@@ -24,8 +24,6 @@ class Case:
     These multiple representations are helpful as some computations are implemented
     for e.g. pandapower only.
 
-    ---
-    Params
     """
 
     _name: str
@@ -42,16 +40,8 @@ class Case:
         return self._net
 
     @property
-    def netdict(self):
-        return self._netdict
-
-    @property
     def G(self):
         return self._G
-
-    @property
-    def all_objects(self):
-        return self._net, self._netdict, self._G
 
     @classmethod
     @functools.lru_cache(maxsize=None)

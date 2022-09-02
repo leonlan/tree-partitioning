@@ -10,8 +10,7 @@ def milp_cluster(case, generators, objective, time_limit):
     """
     Solve the Tree Partition Identification minimizing transient stability.
     """
-    netdict = case.netdict
-    buses, lines = netdict["buses"], netdict["lines"]
+    buses, lines = case.G.nodes, case.G.edges
     clusters = generators
 
     # Define a model

@@ -32,7 +32,7 @@ def brute_force(case, partition: Partition, objective="congestion") -> Solution:
     best_lines, best_gamma = None, 100
 
     for lines in candidates:
-        post_switching_net = _deactivate_lines_pp(net, lines)
+        post_switching_net = _deactivate_lines_pp(case, net, lines)
         pp.rundcpp(post_switching_net)
         new_gamma = _max_loading_percent(post_switching_net)
 
@@ -66,8 +66,7 @@ def _is_tree_graph(clusters: List[int], cross_edges: list):
 def _deactivate_lines_pp(net, lines):
     """Deactivate lines of a pandapower network."""
     # Get the line names first from the lines
-    netdict = Case().netdict
-    line_names = [netdict["lines"][line]["name"] for line in lines]
+    line_names = [G.edges[line]["name"] for line in lines]
 
     net = pp.copy.deepcopy(net)
     net.line.loc[net.line["name"].isin(line_names), "in_service"] = False

@@ -49,8 +49,9 @@ def main():
                     try:
                         res1 = single_stage(case, generator_groups, args.time_limit)
                         fi.write(res1.to_csv())
-                    except:
+                    except Exception as e:
                         print(f"Failure: {case.name} - single stage")
+                        print(e)
 
                     try:
                         res2pfd = two_stage(

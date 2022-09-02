@@ -11,6 +11,7 @@ def milp_line_switching(case, partition: Partition, objective="congestion"):
     """
     model, result = _milp_solve_pyomo(case, partition, objective=objective)
 
+    print(model.objective())
     if result.solver.termination_condition != "infeasible":
         # MILP integral variables may be non-integral in the end result
         # due to LP relaxations. We use np.isclose to extract the binary variables
@@ -45,15 +46,12 @@ def _milp_solve_pyomo(case, partition: Partition, objective: str = "congestion")
     """
     Pyomo model for LSP.
     """
-    netdict = case.netdict
-    buses, lines = netdict["buses"], netdict["lines"]
+    buses, lines = case.G.nodes, case.G.edges
     reduced_graph = ReducedGraph(case.G, partition)
     clusters = reduced_graph.clusters
     cross_edges = reduced_graph.cross_edges
     _cross_edge_lines = set(line for u, v, line in cross_edges)
-    internal_edges = [
-        line for line in netdict["lines"].keys() if line not in _cross_edge_lines
-    ]
+    internal_edges = [line for line in lines.keys() if line not in _cross_edge_lines]
     ep2e = reduced_graph.cross_edge_to_line
     k = len(clusters)
 
@@ -68,7 +66,7 @@ def _milp_solve_pyomo(case, partition: Partition, objective: str = "congestion")
     model.theta = pyo.Var(buses, domain=pyo.Reals)
     model.y = pyo.Var(cross_edges, domain=pyo.Binary)
     model.q = pyo.Var(cross_edges, domain=pyo.Reals)
-    M = {line: 10 * data["c"] for line, data in lines.items()}
+    M = {line: 100 * data["c"] for line, data in lines.items()}
     # M = {line: min(10000, max(20 * data["c"], 500)) for line, data in lines.items()}
 
     # Declare objective value
@@ -182,7 +180,7 @@ def _milp_solve_pyomo(case, partition: Partition, objective: str = "congestion")
 
     # Solve
     solver = pyo.SolverFactory("gurobi", solver_io="python")
-    result = solver.solve(model, tee=True, options={"TimeLimit": 300})
+    result = solver.solve(model, tee=False, options={"TimeLimit": 300})
 
     # Print solution
     print(
