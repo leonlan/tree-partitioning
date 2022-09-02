@@ -101,23 +101,6 @@ python-versions = ">=3.7"
 license = ["ukkonen"]
 
 [[package]]
-name = "igraph"
-version = "0.9.11"
-description = "High performance graph data structures and algorithms"
-category = "main"
-optional = false
-python-versions = ">=3.6"
-
-[package.dependencies]
-texttable = ">=1.6.2"
-
-[package.extras]
-test = ["scipy (>=1.5.0)", "pandas (>=1.1.0)", "numpy (>=1.19.0)", "pytest (>=7.0.1)", "networkx (>=2.5)"]
-test-musl = ["pytest (>=7.0.1)", "networkx (>=2.5)"]
-plotting = ["cairocffi (>=1.2.0)"]
-doc = ["sphinxbootstrap4theme (>=0.6.0)", "Sphinx (>=4.2.0)"]
-
-[[package]]
 name = "importlib-metadata"
 version = "4.12.0"
 description = "Read metadata from Python packages"
@@ -447,14 +430,6 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
-name = "texttable"
-version = "1.6.4"
-description = "module for creating simple ASCII tables"
-category = "main"
-optional = false
-python-versions = "*"
-
-[[package]]
 name = "threadpoolctl"
 version = "3.1.0"
 description = "threadpoolctl"
@@ -527,7 +502,7 @@ docs = ["jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "jaraco.packaging (>=9)
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "417ecd77e17d227fa2464f2a16e6ff6063692352c38987777dc21efd04e075b4"
+content-hash = "ced2157d6ccffc2a2988803a7a4b6b05262bbb69fd0219b97730709634b5ce6f"
 
 [metadata.files]
 cfgv = [
@@ -548,7 +523,6 @@ filelock = []
 fonttools = []
 gurobipy = []
 identify = []
-igraph = []
 importlib-metadata = []
 joblib = []
 kiwisolver = []
@@ -653,7 +627,6 @@ six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
     {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
 ]
-texttable = []
 threadpoolctl = []
 toml = [
     {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},

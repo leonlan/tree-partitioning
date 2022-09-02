@@ -3,13 +3,11 @@ import itertools
 import os
 from pathlib import Path
 
-import igraph as ig
 import networkx as nx
 import numpy as np
 import pandapower as pp
 import pandas as pd
 
-from ._ig_utils import _igg_from_netdict
 from ._nx_utils import _G_from_netdict
 from ._pp_utils import _load_pp_case, _netdict_from_pp_net
 
@@ -22,7 +20,6 @@ class Case:
     - a pandapower power network (net)
     - a generic dictionary representation of the network buses and lines (netdict)
     - a networkx graph (G)
-    - an igraph graph (igg)
 
     These multiple representations are helpful as some computations are implemented
     for e.g. pandapower only.
@@ -35,7 +32,6 @@ class Case:
     _net: ...
     _netdict: dict
     _G: nx.MultiDiGraph
-    _igg: ig.Graph
 
     @property
     def name(self) -> str:
@@ -54,12 +50,8 @@ class Case:
         return self._G
 
     @property
-    def igg(self):
-        return self._igg
-
-    @property
     def all_objects(self):
-        return self._net, self._netdict, self._G, self._igg
+        return self._net, self._netdict, self._G
 
     @classmethod
     @functools.lru_cache(maxsize=None)
@@ -69,7 +61,6 @@ class Case:
         case._net = _load_pp_case(path, opf_init, ac)
         case._netdict = _netdict_from_pp_net(case._net, merge_lines)
         case._G = _G_from_netdict(case._netdict)
-        case._igg = _igg_from_netdict(case._netdict)
 
         return case
 
