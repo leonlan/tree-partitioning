@@ -4,7 +4,7 @@ import pyomo.environ as pyo
 from tree_partitioning.constants import _EPS
 
 
-def dcpf(G):
+def dcopf(G):
     """
     Solve DC power flow for the passed-in graph G with possibly load shedding
     or generation adjustments.
@@ -17,8 +17,9 @@ def dcpf(G):
     model = pyo.ConcreteModel("DC-PF with adjustments")
 
     # Define variables
-    model.gen_adjustment = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, 1))
-    model.load_shedding = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, 1))
+    model.adj = pyo.Var(buses, domain=pyo.NonNegativeReals)
+    model.adjm = pyo.Var(buses, domain=pyo.NonNegativeReals, bounds=(0, 1))
+    model.adjp = pyo.Var(buses, domain=pyo.NonNegativeReals, bounds=(0, 1))
     model.theta = pyo.Var(buses, domain=pyo.Reals)
     model.flow = pyo.Var(lines, domain=pyo.Reals)
 
@@ -26,23 +27,18 @@ def dcpf(G):
     # Positive power imbalance indicates more load than generation
     power_imbalance = sum(nx.get_node_attributes(G, "p_mw").values())
 
-    # if abs(power_imbalance) < _EPS:
-    #     model.no_gen_adj = pyo.Constraint(
-    #         expr=model.gen_adjustment + model.load_shedding == 2 - _EPS
-    #     )
-    if power_imbalance >= 0:
-        model.no_gen_adj = pyo.Constraint(expr=model.gen_adjustment >= 1 - _EPS)
-    else:
-        model.no_load_shedding = pyo.Constraint(expr=model.load_shedding >= 1 - _EPS)
-
     # Declare objective value
-    @model.Objective(sense=pyo.maximize)
+    @model.Objective(sense=pyo.minimize)
     def objective(m):
         """
         Maximize the gen adjustment or load shedding needed to get to a
         convergent solution.
         """
-        return m.gen_adjustment + m.load_shedding
+        return sum(m.adj[bus] * abs(buses[bus]["p_mw"]) for bus in buses)
+
+    @model.Constraint(buses)
+    def abs_adjustments(m, bus):
+        return m.adj[bus] == m.adjp[bus] + m.adjm[bus]
 
     # Declare constraints
     @model.Expression(buses)
@@ -56,12 +52,7 @@ def dcpf(G):
     @model.Constraint(buses)
     def flow_conservation(m, bus):
         lhs = m.outgoing_flow[bus] - m.incoming_flow[bus]
-        is_gen = buses[bus]["p_mw"] < 0
-
-        if is_gen:
-            rhs = m.gen_adjustment * buses[bus]["p_mw"]
-        else:
-            rhs = m.load_shedding * buses[bus]["p_mw"]
+        rhs = (1 + m.adjp[bus] - m.adjm[bus]) * buses[bus]["p_mw"]
 
         return lhs == rhs
 
@@ -69,6 +60,14 @@ def dcpf(G):
     def susceptance(m, *line):
         i, j, _ = line
         return m.flow[line] == lines[line]["b"] * (m.theta[i] - m.theta[j])
+
+    @model.Constraint(lines)
+    def no_congestion0(m, *line):
+        return m.flow[line] <= lines[line]["c"]
+
+    @model.Constraint(lines)
+    def no_congestion1(m, *line):
+        return m.flow[line] >= -lines[line]["c"]
 
     # Solve
     solver = pyo.SolverFactory("gurobi", solver_io="python")
@@ -81,10 +80,12 @@ def dcpf(G):
     H = G.copy()
 
     new_power_injections = {
-        bus: (model.load_shedding.value if p_mw > 0 else model.gen_adjustment.value)
-        * p_mw
+        bus: (1 + model.adjp[bus].value - model.adjm[bus].value) * p_mw
         for bus, p_mw in nx.get_node_attributes(H, "p_mw").items()
     }
+
+    print("Total adjusted: ", model.objective())
+
     nx.set_node_attributes(H, new_power_injections, "p_mw")
 
     new_flows = {k: v.value for k, v in model.flow.items()}

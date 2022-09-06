@@ -1,24 +1,29 @@
+import argparse
 from collections import defaultdict
+from glob import glob
 from pathlib import Path
 
 import networkx as nx
+import numpy as np
 
 import tree_partitioning.utils as utils
 from tree_partitioning.classes import Case
+from tree_partitioning.constants import _EPS
+from tree_partitioning.dcopf import dcopf
+from tree_partitioning.dcpf import dcpf
+from tree_partitioning.gci import mst_gci
+from tree_partitioning.transient_stability.two_stage import two_stage
 
-from .constants import _EPS
-from .dcpf import dcpf
 
-# Which TP-network to choose
-# IEEE-118
-# Run another DCOPF ( might lead to bad situation bcs congestion=1 )
-# - If TP-G congestion => 1, then run DCOPF
-# - If not, then run both with and without DCOPF
-#
-# Variants of the problem
-# - TP-TS: transient stability
-# - TP-MC-DC: minimum congestion with dc power flows
-# - Single stage / two-stage / recursive
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
+    parser.add_argument("--max_clusters", type=int, default=4)
+    parser.add_argument("--min_size", type=int, default=30)
+    parser.add_argument("--max_size", type=int, default=100)
+    parser.add_argument("--results_dir", type=str, default="res-cf/")
+
+    return parser.parse_args()
 
 
 class Statistics:
@@ -47,15 +52,25 @@ class Statistics:
         self.n_alive_buses.append(n_alive_buses)
         self.n_final_components.append(n_final_components)
 
-    def print_stats(self):
+    def to_csv(self, path):
+        with open(path, "w") as fi:
+            for idx in range(len(self.lost_load)):
+                fi.write(
+                    "; ".join(
+                        str(val)
+                        for val in [
+                            self.lost_load[idx],
+                            self.n_line_failures[idx],
+                            self.n_gen_adjustments[idx],
+                            self.n_alive_buses[idx],
+                            self.n_final_components[idx],
+                        ]
+                    )
+                )
+                fi.write("\n")
 
-        print(
-            f"{self.lost_load[-1]=:.2f}, {self.n_line_failures[-1]=},\
-            {self.n_gen_adjustments[-1]=}, {self.n_alive_buses[-1]=}, {self.n_final_components[-1]=}"
-        )
 
-
-def cascading_failure(G):
+def cascading_failure(G, export_path="tmp-cf.txt"):
     stats = Statistics()
 
     # Initiate a cascade for each possible line failure
@@ -71,7 +86,7 @@ def cascading_failure(G):
             comp, lost_load = dcpf(component)
             total_lost_load += lost_load
 
-            if congested_lines(comp):
+            if utils.congested_lines(comp):
                 overloaded.append(comp)
             else:
                 final_components.append(comp)
@@ -81,7 +96,7 @@ def cascading_failure(G):
 
             for component in overloaded:
                 # Find the congested lines for each overloaded component
-                lines = congested_lines(component)
+                lines = utils.congested_lines(component)
                 n_line_failures += len(lines)
 
                 # Removing lines may create new components
@@ -97,7 +112,7 @@ def cascading_failure(G):
             overloaded = []
 
             for comp in new_components:
-                if congested_lines(comp):
+                if utils.congested_lines(comp):
                     overloaded.append(comp)
                 else:
                     final_components.append(comp)
@@ -117,7 +132,10 @@ def cascading_failure(G):
             n_final_components=n_final_components,
         )
 
-        stats.print_stats()
+    print(export_path)
+    print(f"Lost load: {np.mean(stats.lost_load)}")
+    print("\n")
+    stats.to_csv(export_path)
 
     return stats
 
@@ -149,37 +167,35 @@ def adjusted_gens(G, final_components):
     return adjustments
 
 
-def congested_lines(G):
-    """
-    Return the congested lines from G.
-    """
-    weights = nx.get_edge_attributes(G, "f")
-    capacities = nx.get_edge_attributes(G, "c")
-
-    congested = []
-
-    for line in weights.keys():
-        if abs(weights[line]) / capacities[line] > 1 + _EPS:
-            congested.append(line)
-
-    return congested
-
-
-def dead_component(G):
-    return False
-
-
 def main():
-    case = Case.from_file(
-        # Path("instances/pglib_opf_case2000_goc.mat"), merge_lines=True
-        # Path("instances/pglib_opf_case1888_rte.mat"),
-        # Path("instances/pglib_opf_case2736sp_k.mat", merge_lines=True),
-        Path("instances/pglib_opf_case118_ieee.mat", merge_lines=True),
-        # Path("instances/pglib_opf_case300_ieee.mat", merge_lines=True),
-        # Path("instances/pglib_opf_case500_goc.mat", merge_lines=True),
-    )
+    args = parse_args()
 
-    cascading_failure(case.G)
+    for path in sorted(glob(args.instance_pattern)):
+        n = utils.name2size(path)
+
+        if n < args.min_size or n > args.max_size:
+            continue
+
+        case = Case.from_file(path, merge_lines=True)
+
+        cascading_failure(case.G, f"res-cf/{case.name}-og.txt")
+
+        for k in range(2, args.max_clusters + 1):
+
+            try:
+                generators = mst_gci(case, k)
+                res, post_G = two_stage(case, generators)
+                cascading_failure(post_G, f"res-cf/{case.name}-{k}-tp.txt")
+
+            except Exception as e:
+                print(case.name, e)
+
+            try:
+                post_G, _ = dcopf(post_G)
+                cascading_failure(post_G, f"res-cf/{case.name}-{k}-tp-opf.txt")
+
+            except Exception as e:
+                print(case.name, e)
 
 
 if __name__ == "__main__":

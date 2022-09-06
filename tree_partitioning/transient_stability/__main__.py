@@ -5,7 +5,6 @@ from glob import glob
 from tree_partitioning.classes import Case
 from tree_partitioning.gci import mst_gci
 
-from .multi_stage import multi_stage
 from .single_stage import single_stage
 from .two_stage import two_stage
 

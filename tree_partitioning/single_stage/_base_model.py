@@ -22,6 +22,13 @@ def _base_model(case, generators):
     m.line_data = pyo.Param(m.lines, initialize=_lines, within=pyo.Any)
     m.cluster_data = pyo.Param(m.clusters, initialize=_clusters, within=pyo.Any)
 
+    # TODO why does big M need to this big?
+    m.M = pyo.Param(
+        m.lines,
+        initialize={line: data["c"] * 4 for line, data in _lines.items()},
+        within=pyo.Reals,
+    )
+
     # Declare decision variables
     m.assign_bus = pyo.Var(m.buses, m.clusters, domain=pyo.Binary)
     m.assign_line = pyo.Var(m.lines, m.clusters, domain=pyo.Binary)

@@ -1,7 +1,8 @@
 import numpy as np
 import pyomo.environ as pyo
 
-from tree_partitioning.classes import Case, Partition, ReducedGraph, Solution
+from tree_partitioning.classes import Partition, ReducedGraph, Solution
+from tree_partitioning.constants import _EPS
 
 
 def milp_line_switching(case, partition: Partition, objective="congestion"):
@@ -66,7 +67,7 @@ def _milp_solve_pyomo(case, partition: Partition, objective: str = "congestion")
     model.theta = pyo.Var(buses, domain=pyo.Reals)
     model.y = pyo.Var(cross_edges, domain=pyo.Binary)
     model.q = pyo.Var(cross_edges, domain=pyo.Reals)
-    M = {line: 100 * data["c"] for line, data in lines.items()}
+    M = {line: 5 * data["c"] for line, data in lines.items()}
     # M = {line: min(10000, max(20 * data["c"], 500)) for line, data in lines.items()}
 
     # Declare objective value
@@ -147,12 +148,12 @@ def _milp_solve_pyomo(case, partition: Partition, objective: str = "congestion")
     @model.Constraint(cross_edges)
     def inactive_cross_edge_1(m, *ce):
         e = tuple(ce[2:])
-        return m.real_flow[e] >= -m.y[ce] * M[e]
+        return m.real_flow[e] >= -m.y[ce] * M[e] - _EPS
 
     @model.Constraint(cross_edges)
     def inactive_cross_edge_2(m, *ce):
         e = tuple(ce[2:])
-        return m.real_flow[e] <= m.y[ce] * M[e]
+        return m.real_flow[e] <= m.y[ce] * M[e] + _EPS
 
     """
     Regular DC power flows
