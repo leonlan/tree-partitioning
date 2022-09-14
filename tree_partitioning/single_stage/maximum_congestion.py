@@ -2,14 +2,14 @@ import pyomo.environ as pyo
 
 from tree_partitioning.constants import _EPS
 
-from ._base_model import _base_model
+from .base_model import base_model
 
 
-def minimum_congestion(case, generators, time_limit):
+def maximum_congestion(case, generators, **kwargs):
     """
     Solve the tree partitioning problem for minimum congestion in single stage.
     """
-    m = _base_model(case, generators)
+    m = base_model(case, generators)
 
     m.gamma = pyo.Var(domain=pyo.NonNegativeReals)
     m.flow = pyo.Var(m.lines, domain=pyo.Reals)

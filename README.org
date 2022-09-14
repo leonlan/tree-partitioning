@@ -3,7 +3,7 @@ The library contains implementations of /tree partitioning/ algorithms for power
 
 #+html: <p align="center"><img width=600 height=450 src="ieee118.jpg"/></p>
 
-This repository contains a Python implementation of various tree partitioning algorithms presented in the following papers:
+This repository contains implementations of tree partitioning algorithms presented in the following works:
 - L. Lan and A. Zocca, "Localizing line failures in power networks: a tree partitioning approach," Work in progress.
 - L. Lan and A. Zocca, “Refining bridge-block decompositions through two-stage and recursive tree partitioning,” arXiv:2110.06998 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.06998
 - L. Lan and A. Zocca, “An MILP-based approach to tree partitioning with minimal power flow disruption and generator coherency constraints,” arXiv:2110.07000 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.07000

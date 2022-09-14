@@ -7,14 +7,8 @@ import pyomo.environ as pyo
 import tree_partitioning.utils as utils
 from tree_partitioning.classes import Case
 from tree_partitioning.gci import mst_gci
-from tree_partitioning.line_switching.milp_line_switching import milp_line_switching
-from tree_partitioning.partitioning import milp_cluster, model2partition
-from tree_partitioning.single_stage.minimum_congestion import (
-    minimum_congestion as single_stage,
-)
-
-from .recursive import recursive
-from .two_stage import two_stage
+from tree_partitioning.single_stage import maximum_congestion as single_stage
+from tree_partitioning.single_stage import transient_stability as single_stage_ts
 
 
 def parse_args():
@@ -48,9 +42,36 @@ def main():
             generator_groups = mst_gci(case, k)
 
             solver = pyo.SolverFactory("gurobi", solver_io="python")
-            model = single_stage(case, generator_groups, 100)
+
+            # Solve TS first
+            model_ts = single_stage_ts(case, generator_groups)
+            res_ts = solver.solve(
+                model_ts, tee=True, options={"FeasibilityTol": 0.01, "MIPFocus": 2}
+            )
+
+            # Feed solution TS into MC
+            model = single_stage(case, generator_groups)
+
+            for key, value in model_ts.assign_bus.items():
+                model.assign_bus[key] = round(value())
+
+            for key, value in model_ts.assign_line.items():
+                model.assign_line[key] = round(value())
+
+            for key, value in model_ts.active_cross_edge.items():
+                model.active_cross_edge[key] = round(value())
+
+            for key, value in model_ts.active_line.items():
+                model.active_line[key] = round(value())
+
+            for key, value in model_ts.commodity_flow.items():
+                model.commodity_flow[key] = round(value())
+
             res = solver.solve(
-                model, tee=True, options={"FeasibilityTol": 0.01, "MIPFocus": 2}
+                model,
+                tee=True,
+                options={"FeasibilityTol": 0.01, "MIPFocus": 1},
+                warmstart=True,
             )
             print(f"test: {model.objective()}")
 
