@@ -5,9 +5,9 @@ from pathlib import Path
 
 import networkx as nx
 import numpy as np
+from experiment_pfd import two_stage_pfd
 
 import tree_partitioning.utils as utils
-from experiment_pfd import two_stage_pfd
 from tree_partitioning.classes import Case
 from tree_partitioning.constants import _EPS
 from tree_partitioning.dcopf import dcopf
