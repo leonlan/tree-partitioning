@@ -9,8 +9,6 @@ from collections import defaultdict
 
 import networkx as nx
 
-from tree_partitioning.classes import Case
-
 _DELTA = 0.15
 
 

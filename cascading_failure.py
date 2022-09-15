@@ -7,12 +7,12 @@ import networkx as nx
 import numpy as np
 
 import tree_partitioning.utils as utils
+from experiment_pfd import two_stage_pfd
 from tree_partitioning.classes import Case
 from tree_partitioning.constants import _EPS
 from tree_partitioning.dcopf import dcopf
 from tree_partitioning.dcpf import dcpf
 from tree_partitioning.gci import mst_gci
-from tree_partitioning.transient_stability.two_stage import two_stage
 
 
 def parse_args():
@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
     parser.add_argument("--max_clusters", type=int, default=4)
     parser.add_argument("--min_size", type=int, default=30)
-    parser.add_argument("--max_size", type=int, default=100)
+    parser.add_argument("--max_size", type=int, default=1000)
     parser.add_argument("--results_dir", type=str, default="res-cf/")
 
     return parser.parse_args()
@@ -178,21 +178,17 @@ def main():
 
         case = Case.from_file(path, merge_lines=True)
 
-        cascading_failure(case.G, f"res-cf/{case.name}-og.txt")
+        cascading_failure(case.G, f"res-cf/{case.name}-gci25-og.txt")
 
         for k in range(2, args.max_clusters + 1):
 
             try:
                 generators = mst_gci(case, k)
-                res, post_G = two_stage(case, generators)
-                cascading_failure(post_G, f"res-cf/{case.name}-{k}-tp.txt")
+                res, post_G = two_stage_pfd(case, generators, time_limit=200)
+                cascading_failure(post_G, f"res-cf/{case.name}-{k}-gci25-tp.txt")
 
-            except Exception as e:
-                print(case.name, e)
-
-            try:
                 post_G, _ = dcopf(post_G)
-                cascading_failure(post_G, f"res-cf/{case.name}-{k}-tp-opf.txt")
+                cascading_failure(post_G, f"res-cf/{case.name}-{k}-gci25-tp-opf.txt")
 
             except Exception as e:
                 print(case.name, e)

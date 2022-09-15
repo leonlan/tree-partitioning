@@ -1,14 +1,14 @@
 import pyomo.environ as pyo
 
-from .base_model import base_model
+from ._base_tree_partitioning import _base_tree_partitioning
 
 
-def transient_stability(case, generators, **kwargs):
+def power_flow_disruption(G, generators, **kwargs):
     """
     Solve the tree partitioning problem for transient stability using the
     single-stage MILP approach.
     """
-    m = base_model(case, generators)
+    m = _base_tree_partitioning(G, generators, **kwargs)
 
     @m.Objective(sense=pyo.minimize)
     def objective(m):

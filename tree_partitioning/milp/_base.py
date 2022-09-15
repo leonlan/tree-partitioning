@@ -1,7 +1,10 @@
 import pyomo.environ as pyo
 
 
-def partitioning_model(G, n_clusters, **kwargs) -> pyo.ConcreteModel:
+def _base(G, n_clusters, **kwargs) -> pyo.ConcreteModel:
+    """
+    Base model used for partitioning and tree partitioning models.
+    """
     _buses, _lines = G.nodes, G.edges
 
     # Define a model
@@ -10,7 +13,7 @@ def partitioning_model(G, n_clusters, **kwargs) -> pyo.ConcreteModel:
     # Defines set indices
     m.buses = pyo.Set(initialize=_buses.keys())
     m.lines = pyo.Set(initialize=_lines.keys())
-    m.clusters = pyo.RangeSet(n_clusters)
+    m.clusters = pyo.Set(initialize=range(n_clusters))
 
     # Define parameters data sets
     m.bus_data = pyo.Param(m.buses, initialize=_buses, within=pyo.Any)

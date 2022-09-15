@@ -2,18 +2,25 @@ import pyomo.environ as pyo
 
 from tree_partitioning.constants import _EPS
 
-from .base_model import base_model
+from ._base_tree_partitioning import _base_tree_partitioning
 
 
-def maximum_congestion(case, generators, **kwargs):
+def maximum_congestion(G, generators, **kwargs):
     """
-    Solve the tree partitioning problem for minimum congestion in single stage.
+    Solve the tree partitioning problem minimizing maximum congestion.
     """
-    m = base_model(case, generators)
+    m = _base_tree_partitioning(G, generators, **kwargs)
 
     m.gamma = pyo.Var(domain=pyo.NonNegativeReals)
     m.flow = pyo.Var(m.lines, domain=pyo.Reals)
     m.theta = pyo.Var(m.buses, domain=pyo.Reals)
+
+    # TODO why does big M need to this big?
+    m.M = pyo.Param(
+        m.lines,
+        initialize={line: data["c"] * 10 for line, data in m.line_data.items()},
+        within=pyo.Reals,
+    )
 
     @m.Objective(sense=pyo.minimize)
     def objective(m):
