@@ -26,10 +26,6 @@ def dcpf(G):
     # Positive power imbalance indicates more load than generation
     power_imbalance = sum(nx.get_node_attributes(G, "p_mw").values())
 
-    # if abs(power_imbalance) < _EPS:
-    #     model.no_gen_adj = pyo.Constraint(
-    #         expr=model.gen_adjustment + model.load_shedding == 2 - _EPS
-    #     )
     if power_imbalance >= 0:
         model.no_gen_adj = pyo.Constraint(expr=model.gen_adjustment >= 1 - _EPS)
     else:

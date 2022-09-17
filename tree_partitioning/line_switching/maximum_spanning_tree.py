@@ -3,7 +3,7 @@ import networkx as nx
 from tree_partitioning.classes import ReducedGraph
 
 
-def maximum_spanning_tree(G, partition, weight="weight"):
+def maximum_spanning_tree(G, partition, weight="weight", **kwargs):
     """
     Finds the maximum spanning tree using the passed-in edge weights to
     determine the line switching actions. The edges that do not belong
