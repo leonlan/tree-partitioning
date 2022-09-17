@@ -1,8 +1,0 @@
-name: tree-partitioning
-channels:
-  - http://conda.anaconda.org/gurobi
-  - defaults
-  - conda-forge
-dependencies:
-  - python=3.9
-prefix: /Users/leonlan/anaconda3/envs/tree-partitioning
