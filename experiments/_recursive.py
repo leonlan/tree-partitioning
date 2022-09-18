@@ -1,3 +1,4 @@
+import networkx as nx
 from _sanity_check import _sanity_check
 from _select import _select_line_switching, _select_partitioning
 
@@ -13,35 +14,33 @@ def _recursive(case, generators, **kwargs):
     G = case.G.copy()
     groups = generators
 
-    solver, options = kwargs["solver"], kwargs["options"]
-
-    final_partition = [list(G.nodes)]
     final_lines = []
+    final_partition = [list(G.nodes)]
     cluster = final_partition[0]
 
-    total = 0
+    total = []
 
-    for _ in range(len(generators) - 1):
+    for k in range(len(generators) - 1):
         # Partitioning stage
-        new_partition = _select_partitioning(G.subgraph(cluster), generators, **kwargs)
+        new_partition = _select_partitioning(
+            G.subgraph(cluster), groups, recursive=True, **kwargs
+        )
 
         assert new_partition.is_connected_clusters(G.subgraph(cluster))
 
         # Line switching stage
-        cost, lines = _select_line_switching(
-            G.subgraph(cluster), new_partition, **kwargs
-        )  # REVIEW give subgraph or full graph to line switching
+        cost, lines = _select_line_switching(G, new_partition, **kwargs)
         final_lines += lines
-        total += cost
+        total.append(cost)
 
         # Update the final partition, switch off lines, rerun dcpf
         final_partition = _update(final_partition, new_partition)
         G.remove_edges_from(lines)
-        G, _ = dcpf(G)  # this is needed for max congestion problem
+        assert len(final_partition) == k + 2
 
         # Find the cluster with the most generator groups
-        num_groups = lambda cl: sum(gens[0] in cl for idx, gens in generators.items())
-        cluster = max([cl for cl in final_partition], key=num_groups)
+        num_groups = lambda cl: (gens[0] in cl for idx, gens in generators.items())
+        cluster = max([cl for cl in final_partition], key=lambda x: sum(num_groups(x)))
 
         groups = {
             idx: gens
@@ -49,10 +48,11 @@ def _recursive(case, generators, **kwargs):
             if all(g in cluster for g in gens)
         }
 
-    print("multi_stage", len(generators), total)
     _sanity_check(
         case.G, generators, Partition(dict(enumerate(final_partition))), final_lines
-    )  # case.G is the original, unmodified network
+    )
+
+    print("multi_stage", len(generators), total, sum(total), max(total))
 
     return 0, 0  # TODO
 

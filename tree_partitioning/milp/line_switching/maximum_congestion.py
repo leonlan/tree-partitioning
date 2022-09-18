@@ -1,7 +1,5 @@
 import pyomo.environ as pyo
 
-from tree_partitioning.constants import _EPS
-
 from ._base_line_switching import _base_line_switching
 
 
@@ -9,14 +7,15 @@ def maximum_congestion(G, partition, **kwargs):
     m = _base_line_switching(G, partition, **kwargs)
 
     m.gamma = pyo.Var(domain=pyo.NonNegativeReals)
-    m.fabs = pyo.Var(m.lines, domain=pyo.NonNegativeReals)
-    m.fp = pyo.Var(m.lines, domain=pyo.NonNegativeReals)
-    m.fm = pyo.Var(m.lines, domain=pyo.NonNegativeReals)
     m.flow = pyo.Var(m.lines, domain=pyo.Reals)
     m.theta = pyo.Var(m.buses, domain=pyo.Reals)
 
-    # TODO investigate the influence of big-M
-    m.M = {line: 10 * data["c"] for line, data in m.line_data.items()}
+    # TODO why does big M need to this big?
+    m.M = pyo.Param(
+        m.lines,
+        initialize={line: data["c"] * 20 for line, data in m.line_data.items()},
+        within=pyo.Reals,
+    )
 
     @m.Objective(sense=pyo.minimize)
     def objective(m):
@@ -62,11 +61,11 @@ def maximum_congestion(G, partition, **kwargs):
     @m.Constraint(m.cross)
     def inactive_cross_edge_1(m, *ce):
         line = tuple(ce[2:])
-        return m.flow[line] >= -m.active_line[line] * m.M[line] - _EPS
+        return m.flow[line] >= -m.active_line[line] * m.M[line]
 
     @m.Constraint(m.cross)
     def inactive_cross_edge_2(m, *ce):
         line = tuple(ce[2:])
-        return m.flow[line] <= m.active_line[line] * m.M[line] + _EPS
+        return m.flow[line] <= m.active_line[line] * m.M[line]
 
     return m

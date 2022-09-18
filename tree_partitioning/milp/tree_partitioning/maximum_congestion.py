@@ -1,7 +1,5 @@
 import pyomo.environ as pyo
 
-from tree_partitioning.constants import _EPS
-
 from ._base_tree_partitioning import _base_tree_partitioning
 
 
@@ -18,7 +16,7 @@ def maximum_congestion(G, generators, **kwargs):
     # TODO why does big M need to this big?
     m.M = pyo.Param(
         m.lines,
-        initialize={line: data["c"] * 10 for line, data in m.line_data.items()},
+        initialize={line: data["c"] * 20 for line, data in m.line_data.items()},
         within=pyo.Reals,
     )
 
@@ -54,15 +52,11 @@ def maximum_congestion(G, generators, **kwargs):
 
     @m.Constraint(m.lines)
     def flow_active_line_1(m, *line):
-        return (
-            m.flow[line] <= m.dc_eq[line] + m.M[line] * (1 - m.active_line[line]) + _EPS
-        )
+        return m.flow[line] <= m.dc_eq[line] + m.M[line] * (1 - m.active_line[line])
 
     @m.Constraint(m.lines)
     def flow_active_line_2(m, *line):
-        return (
-            m.flow[line] >= m.dc_eq[line] - m.M[line] * (1 - m.active_line[line]) - _EPS
-        )
+        return m.flow[line] >= m.dc_eq[line] - m.M[line] * (1 - m.active_line[line])
 
     @m.Constraint(m.lines)
     def flow_inactive_line_1(m, *line):

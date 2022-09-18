@@ -49,3 +49,19 @@ def congested_lines(G):
             congested.append(line)
 
     return congested
+
+
+def compute_cross_edges(G, partition):
+    """
+    Return the cross edges defined on G and partition.
+    """
+    membership = partition.membership
+    edges = []
+
+    for (i, j, idx) in G.edges:
+        if i in membership and j in membership:
+            u, v = membership[i], membership[j]
+            if u != v:
+                edges.append((u, v, (i, j, idx)))
+
+    return edges

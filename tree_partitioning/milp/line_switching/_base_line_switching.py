@@ -12,8 +12,6 @@ def _base_line_switching(G, partition: Partition, objective="congestion", **kwar
     - The reduced graph is a tree, i.e., exactly k - 1 cross edges are active.
     """
     _buses, _lines = G.nodes, G.edges
-    _reduced_graph = ReducedGraph(G, partition)
-    _cross_edges = _reduced_graph.cross_edges
 
     m = pyo.ConcreteModel()
 

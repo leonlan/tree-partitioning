@@ -4,12 +4,16 @@ import pyomo.environ as pyo
 from tree_partitioning.constants import _EPS
 
 
-def dcpf(G):
+def dcpf(G, load_shed=False, in_place=False):
     """
     Solve DC power flow for the passed-in graph G with possibly load shedding
     or generation adjustments.
 
-    Return a new graph with adjusted power flows and the load shedding.
+    If load_shed is set, then allow load shedding and generator adjustments
+    to take place (for cascading failure simulations).
+
+    If in_place is set, return the original graph with adjusted power flows
+    and the load shedding. Otherwise return a new graph.
     """
     buses, lines = G.nodes, G.edges
 
@@ -68,22 +72,22 @@ def dcpf(G):
 
     # Solve
     solver = pyo.SolverFactory("gurobi", solver_io="python")
-    result = solver.solve(model, tee=False, options={"TimeLimit": 300})
-
-    # # Print solution
-    # print(f"{model.gen_adjustment.value=:.2f}, {model.load_shedding.value=:.2f}")
-
-    # Make a new copy of the graph and change the power injections and flows
-    H = G.copy()
+    solver.solve(model, tee=False, options={"TimeLimit": 300})
 
     new_power_injections = {
         bus: (model.load_shedding.value if p_mw > 0 else model.gen_adjustment.value)
         * p_mw
-        for bus, p_mw in nx.get_node_attributes(H, "p_mw").items()
+        for bus, p_mw in nx.get_node_attributes(G, "p_mw").items()
     }
-    nx.set_node_attributes(H, new_power_injections, "p_mw")
 
     new_flows = {k: v.value for k, v in model.flow.items()}
-    nx.set_edge_attributes(H, new_flows, "f")
 
-    return H, (power_imbalance if power_imbalance > 0 else 0)
+    if in_place:
+        nx.set_node_attributes(G, new_power_injections, "p_mw")
+        nx.set_edge_attributes(G, new_flows, "f")
+        return G
+    else:
+        H = G.copy()
+        nx.set_node_attributes(H, new_power_injections, "p_mw")
+        nx.set_edge_attributes(H, new_flows, "f")
+        return H

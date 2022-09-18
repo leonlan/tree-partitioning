@@ -10,6 +10,7 @@ from _single_stage import _single_stage
 from _single_stage_warm_start import _single_stage_warm_start
 from _two_stage import _two_stage
 
+import tree_partitioning.line_switching.brute_force as brute_force
 import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
 from tree_partitioning.classes import Case
@@ -54,12 +55,12 @@ def main():
         for k in range(args.min_clusters, args.max_clusters + 1):
             generator_groups = mst_gci(case, k)
 
-            _single_stage(
-                case,
-                generator_groups,
-                tree_partitioning_alg=single_stage.power_flow_disruption,
-                **config,
-            )
+            # _single_stage(
+            #     case,
+            #     generator_groups,
+            #     tree_partitioning_alg=single_stage.power_flow_disruption,
+            #     **config,
+            # )
 
             _two_stage(
                 case,
@@ -73,7 +74,7 @@ def main():
                 case,
                 generator_groups,
                 partitioning_model=partitioning.power_flow_disruption,
-                line_switching_alg=maximum_spanning_tree,
+                line_switching_alg=brute_force.power_flow_disruption,
                 **config,
             )
 
@@ -85,6 +86,9 @@ def main():
             #     line_switching_alg=maximum_spanning_tree,
             #     **config,
             # )
+            #
+
+            print("")
 
 
 if __name__ == "__main__":

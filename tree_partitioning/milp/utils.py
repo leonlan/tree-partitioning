@@ -29,7 +29,7 @@ def get_inactive_lines(model):
     lines = []
 
     for line, val in model.active_line.items():
-        if round(val()) == 0:
+        if val() is not None and round(val()) == 0:
             lines.append(line)
 
     return lines

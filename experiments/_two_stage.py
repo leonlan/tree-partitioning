@@ -17,7 +17,7 @@ def _two_stage(case, generators, **kwargs):
     cost, lines = _select_line_switching(G, partition, **kwargs)
     time_line_switching = perf_counter() - start_line_switching
 
-    # _sanity_check(G, generators, partition, lines)
+    _sanity_check(G, generators, partition, lines)
     print("two_stage", len(generators), cost)
 
     return (0, 0)  # TODO
