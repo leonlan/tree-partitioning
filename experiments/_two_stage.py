@@ -7,6 +7,10 @@ from _select import _select_line_switching, _select_partitioning
 def _two_stage(case, generators, **kwargs):
     G = case.G
 
+    # Halven time limit for two-stage algorithm
+    kwargs = kwargs.copy()
+    kwargs["options"] = {"TimeLimit": kwargs["options"]["TimeLimit"] / 2}
+
     # Partitioning stage
     start_partitioning = perf_counter()
     partition = _select_partitioning(G, generators, **kwargs)
@@ -20,4 +24,4 @@ def _two_stage(case, generators, **kwargs):
     _sanity_check(G, generators, partition, lines)
     print("two_stage", len(generators), cost)
 
-    return (0, 0)  # TODO
+    return partition, lines, time_partitioning + time_line_switching

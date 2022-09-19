@@ -1,9 +1,9 @@
-import networkx as nx
+import time
+
 from _sanity_check import _sanity_check
 from _select import _select_line_switching, _select_partitioning
 
 from tree_partitioning.classes import Partition
-from tree_partitioning.dcpf import dcpf
 
 
 def _recursive(case, generators, **kwargs):
@@ -14,26 +14,31 @@ def _recursive(case, generators, **kwargs):
     G = case.G.copy()
     groups = generators
 
+    # Shorten time limit for recursive algorithm
+    kwargs = kwargs.copy()
+    kwargs["options"] = {
+        "TimeLimit": kwargs["options"]["TimeLimit"] / (len(groups) - 1)
+    }
+
     final_lines = []
     final_partition = [list(G.nodes)]
     cluster = final_partition[0]
 
     total = []
 
+    start = time.perf_counter()
     for k in range(len(generators) - 1):
-        # Partitioning stage
+        # Split the largest cluster into two parts
         new_partition = _select_partitioning(
             G.subgraph(cluster), groups, recursive=True, **kwargs
         )
 
-        assert new_partition.is_connected_clusters(G.subgraph(cluster))
-
-        # Line switching stage
+        # Find the corresponding line switching actions
         cost, lines = _select_line_switching(G, new_partition, **kwargs)
         final_lines += lines
         total.append(cost)
 
-        # Update the final partition, switch off lines, rerun dcpf
+        # Update the final partition, switch off the lines
         final_partition = _update(final_partition, new_partition)
         G.remove_edges_from(lines)
         assert len(final_partition) == k + 2
@@ -48,13 +53,12 @@ def _recursive(case, generators, **kwargs):
             if all(g in cluster for g in gens)
         }
 
-    _sanity_check(
-        case.G, generators, Partition(dict(enumerate(final_partition))), final_lines
-    )
+    final_partition = Partition(dict(enumerate(final_partition)))
 
+    _sanity_check(case.G, generators, final_partition, final_lines)
     print("multi_stage", len(generators), total, sum(total), max(total))
 
-    return 0, 0  # TODO
+    return final_partition, final_lines, time.perf_counter() - start
 
 
 def _update(partition: list, subpartition: Partition):

@@ -1,5 +1,6 @@
+import time
+
 from _sanity_check import _sanity_check
-from _select import _select_line_switching
 
 import tree_partitioning.milp.line_switching.maximum_congestion as milp_line_switching
 import tree_partitioning.milp.partitioning as partitioning
@@ -13,9 +14,12 @@ def _single_stage_warm_start(case, generators, **kwargs):
     """
     solver, options = kwargs["solver"], kwargs["options"]
 
-    kwargs["options"].update({"TimeLimit": 30})
+    # Halven time limit for two-stage algorithm
+    kwargs = kwargs.copy()
+    kwargs["options"] = {"TimeLimit": kwargs["options"]["TimeLimit"] / 2}
 
     G = case.G
+    start = time.perf_counter()
 
     # Solve the two stage models
     part_model = partitioning.power_flow_disruption(G, generators, **kwargs)
@@ -28,7 +32,8 @@ def _single_stage_warm_start(case, generators, **kwargs):
 
     _sanity_check(G, generators, partition, lines)
 
-    kwargs["options"].update({"TimeLimit": 300})
+    # Double time limit back to original for single stage
+    kwargs["options"].update({"TimeLimit": kwargs["options"]["TimeLimit"] * 2})
 
     # Warm start the single stage model
     model = single_stage.maximum_congestion(G, generators, **kwargs)
@@ -40,6 +45,8 @@ def _single_stage_warm_start(case, generators, **kwargs):
 
     _sanity_check(case.G, generators, partition, inactive_lines)
     print("single-stage (warm)", len(generators), model.objective())
+
+    return partition, inactive_lines, time.perf_counter() - start
 
 
 def _warm_start(tp_model, part_model, ls_model):

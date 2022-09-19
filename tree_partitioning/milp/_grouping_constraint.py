@@ -19,6 +19,15 @@ def _grouping_constraint(m, groups, recursive=False):
     if recursive:
         m.assign_group = pyo.Var(m.groups, m.clusters, domain=pyo.Binary)
 
+        @m.Constraint()
+        def fix_first_group(m):
+            """
+            The first group-cluster assignment can always be fixed.
+            """
+            group = tuple(m.groups)[0]
+            cluster = tuple(m.clusters)[0]
+            return m.assign_group[group, cluster] == 1
+
         @m.Constraint(m.clusters)
         def at_least_one_group_per_cluster(m, cluster):
             return sum(m.assign_group[group, cluster] for group in m.groups) >= 1

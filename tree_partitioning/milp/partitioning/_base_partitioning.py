@@ -17,4 +17,15 @@ def _base_partitioning(G, groups, recursive=False, **kwargs) -> pyo.ConcreteMode
     _grouping_constraint(m, groups, recursive)
     _single_commodity_flow(m)
 
+    if not recursive:
+
+        @m.Constraint(m.clusters)
+        def assign_source_bus(m, cluster):
+            """
+            If not recursive, the generator group-cluster assignment is fixed and
+            hence the source bus can be fixed.
+            """
+            source = groups[cluster][0]
+            return m.source_bus[source, cluster] == 1
+
     return m

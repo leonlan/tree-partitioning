@@ -55,12 +55,12 @@ def main():
         for k in range(args.min_clusters, args.max_clusters + 1):
             generator_groups = mst_gci(case, k)
 
-            # _single_stage(
-            #     case,
-            #     generator_groups,
-            #     tree_partitioning_alg=single_stage.maximum_congestion,
-            #     **config,
-            # )
+            _single_stage(
+                case,
+                generator_groups,
+                tree_partitioning_alg=single_stage.maximum_congestion,
+                **config,
+            )
 
             _two_stage(
                 case,
@@ -69,14 +69,6 @@ def main():
                 line_switching_model=milp_line_switching,
                 **config,
             )
-
-            # _two_stage(
-            #     case,
-            #     generator_groups,
-            #     partitioning_model=partitioning.power_flow_disruption,
-            #     line_switching_alg=brute_force.maximum_congestion,
-            #     **config,
-            # )
 
             _recursive(
                 case,
@@ -89,9 +81,7 @@ def main():
             _single_stage_warm_start(
                 case,
                 generator_groups,
-                # tree_partitioning_alg=single_stage.power_flow_disruption,
-                # partitioning_alg=partitioning.power_flow_disruption,
-                # line_switching_alg=maximum_spanning_tree,
+                line_switching_model=milp_line_switching,
                 **config,
             )
 
