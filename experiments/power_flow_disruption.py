@@ -32,7 +32,6 @@ def parse_args():
         default="single_stage two_stage recursive ",
         nargs="+",
     )
-    parser.add_argument("--results_dir", type=str, default="results/")
 
     return parser.parse_args()
 
@@ -62,72 +61,67 @@ def main():
             generator_groups = mst_gci(case, k)
 
             if "single_stage" in args.algorithm:
-                partition, lines, runtime = _single_stage(
-                    case,
-                    generator_groups,
-                    tree_partitioning_alg=single_stage.power_flow_disruption,
-                    **config,
-                )
-                make_result(
-                    case,
-                    generator_groups,
-                    partition,
-                    lines,
-                    runtime=runtime,
-                    algorithm="1ST",
-                ).to_csv(f"results/pfd/{case.name}-1ST-{k}.csv")
+                path = f"results/pfd/{case.name}-1ST-{k}.csv"
+                try:
+                    partition, lines, runtime = _single_stage(
+                        case,
+                        generator_groups,
+                        tree_partitioning_alg=single_stage.power_flow_disruption,
+                        **config,
+                    )
+                    make_result(
+                        case,
+                        generator_groups,
+                        partition,
+                        lines,
+                        runtime=runtime,
+                        algorithm="1ST",
+                    ).to_csv(path)
+                except:
+                    print(path, "failed")
 
             if "two_stage" in args.algorithm:
-                partition, lines, runtime = _two_stage(
-                    case,
-                    generator_groups,
-                    partitioning_model=partitioning.power_flow_disruption,
-                    line_switching_alg=maximum_spanning_tree,
-                    **config,
-                )
-                make_result(
-                    case,
-                    generator_groups,
-                    partition,
-                    lines,
-                    runtime=runtime,
-                    algorithm="2ST",
-                ).to_csv(f"results/pfd/{case.name}-2ST-{k}.csv")
+                path = f"results/pfd/{case.name}-2ST-{k}.csv"
+                try:
+                    partition, lines, runtime = _two_stage(
+                        case,
+                        generator_groups,
+                        partitioning_model=partitioning.power_flow_disruption,
+                        line_switching_alg=maximum_spanning_tree,
+                        **config,
+                    )
+                    make_result(
+                        case,
+                        generator_groups,
+                        partition,
+                        lines,
+                        runtime=runtime,
+                        algorithm="2ST",
+                    ).to_csv(path)
 
+                except:
+                    print(path, "failed")
             if "recursive" in args.algorithm:
-                partition, lines, runtime = _recursive(
-                    case,
-                    generator_groups,
-                    partitioning_model=partitioning.power_flow_disruption,
-                    line_switching_alg=brute_force.power_flow_disruption,
-                    **config,
-                )
-                make_result(
-                    case,
-                    generator_groups,
-                    partition,
-                    lines,
-                    runtime=runtime,
-                    algorithm="R",
-                ).to_csv(f"results/pfd/{case.name}-R-{k}.csv")
+                try:
+                    path = f"results/pfd/{case.name}-R-{k}.csv"
+                    partition, lines, runtime = _recursive(
+                        case,
+                        generator_groups,
+                        partitioning_model=partitioning.power_flow_disruption,
+                        line_switching_alg=brute_force.power_flow_disruption,
+                        **config,
+                    )
+                    make_result(
+                        case,
+                        generator_groups,
+                        partition,
+                        lines,
+                        runtime=runtime,
+                        algorithm="R",
+                    ).to_csv(path)
 
-            # if "warm_start" in args.algorithm:
-            #     partition, lines, runtime = _single_stage_warm_start(
-            #         case,
-            #         generator_groups,
-            #         tree_partitioning_model=single_stage.power_flow_disruption,
-            #         partitioning_model=partitioning.power_flow_disruption,
-            #         line_switching_alg=maximum_spanning_tree,
-            #         **config,
-            #     )
-            #     make_result(
-            #         case,
-            #         generator_groups,
-            #         partition,
-            #         lines,
-            #         runtime=runtime,
-            #         algorithm="WS",
-            #     ).to_csv(f"results/pfd/{case.name}-WS-{k}.csv")
+                except:
+                    print(path, "failed")
 
 
 if __name__ == "__main__":

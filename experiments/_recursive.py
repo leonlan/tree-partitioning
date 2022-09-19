@@ -14,11 +14,7 @@ def _recursive(case, generators, **kwargs):
     G = case.G.copy()
     groups = generators
 
-    # Shorten time limit for recursive algorithm
     kwargs = kwargs.copy()
-    kwargs["options"] = {
-        "TimeLimit": kwargs["options"]["TimeLimit"] / (len(groups) - 1)
-    }
 
     final_lines = []
     final_partition = [list(G.nodes)]
@@ -28,6 +24,7 @@ def _recursive(case, generators, **kwargs):
 
     start = time.perf_counter()
     for k in range(len(generators) - 1):
+        start = time.perf_counter()
         # Split the largest cluster into two parts
         new_partition = _select_partitioning(
             G.subgraph(cluster), groups, recursive=True, **kwargs
@@ -52,6 +49,10 @@ def _recursive(case, generators, **kwargs):
             for idx, gens in generators.items()
             if all(g in cluster for g in gens)
         }
+
+        # Shorten time limit with remainder time
+        time_delta = time.perf_counter() - start
+        kwargs["options"] = {"TimeLimit": kwargs["options"]["TimeLimit"] - time_delta}
 
     final_partition = Partition(dict(enumerate(final_partition)))
 
