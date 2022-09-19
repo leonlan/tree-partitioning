@@ -24,8 +24,8 @@ def parse_args():
     parser.add_argument("--time_limit", type=int, default=300)
     parser.add_argument("--min_clusters", type=int, default=2)
     parser.add_argument("--max_clusters", type=int, default=3)
-    parser.add_argument("--max_size", type=int, default=0)
-    parser.add_argument("--min_size", type=int, default=3000)
+    parser.add_argument("--max_size", type=int, default=3000)
+    parser.add_argument("--min_size", type=int, default=0)
     parser.add_argument(
         "--algorithm",
         choices=["single_stage", "two_stage", "recursive"],

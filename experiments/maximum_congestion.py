@@ -29,8 +29,8 @@ def parse_args():
     parser.add_argument("--min_size", type=int, default=30)
     parser.add_argument(
         "--algorithm",
-        choices=["single_stage", "two_stage", "recursive"],
-        default="single_stage two_stage recursive ",
+        choices=["single_stage", "two_stage", "recursive", "warm_start"],
+        default="single_stage two_stage recursive warm_start",
         nargs="+",
     )
 

@@ -6,7 +6,7 @@ def _select_partitioning(G, generators, recursive=False, **kwargs):
 
     if "partitioning_model" in kwargs and (part_model := kwargs["partitioning_model"]):
         model = part_model(G, generators, recursive, **kwargs)
-        solver.solve(model, tee=True, options=options)
+        solver.solve(model, tee=False, options=options)
         return model_utils.get_partition(model)
 
     # NOTE This is untested since we only use partitioning models
