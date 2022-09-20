@@ -32,6 +32,7 @@ def parse_args():
         default="single_stage two_stage recursive ",
         nargs="+",
     )
+    parser.add_argument("--results_dir", type=str, default="results/mc/")
 
     return parser.parse_args()
 
@@ -61,7 +62,7 @@ def main():
             generator_groups = mst_gci(case, k)
 
             if "single_stage" in args.algorithm:
-                path = f"results/pfd/{case.name}-1ST-{k}.csv"
+                path = f"{args.results_dir}{case.name}-1ST-{k}.csv"
                 try:
                     partition, lines, runtime = _single_stage(
                         case,
@@ -81,7 +82,7 @@ def main():
                     print(path, "failed")
 
             if "two_stage" in args.algorithm:
-                path = f"results/pfd/{case.name}-2ST-{k}.csv"
+                path = f"{args.results_dir}{case.name}-2ST-{k}.csv"
                 try:
                     partition, lines, runtime = _two_stage(
                         case,
@@ -103,7 +104,7 @@ def main():
                     print(path, "failed")
             if "recursive" in args.algorithm:
                 try:
-                    path = f"results/pfd/{case.name}-R-{k}.csv"
+                    path = f"{args.results_dir}{case.name}-R-{k}.csv"
                     partition, lines, runtime = _recursive(
                         case,
                         generator_groups,

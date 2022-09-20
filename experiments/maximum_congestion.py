@@ -62,7 +62,7 @@ def main():
             generator_groups = mst_gci(case, k)
 
             if "single_stage" in args.algorithm:
-                path = f"results/mc/{case.name}-1ST-{k}.csv"
+                path = f"{args.results_dir}{case.name}-1ST-{k}.csv"
                 try:
                     partition, lines, runtime = _single_stage(
                         case,
@@ -83,7 +83,7 @@ def main():
                     print(path, "failed")
 
             if "two_stage" in args.algorithm:
-                path = f"results/mc/{case.name}-2ST-{k}.csv"
+                path = f"{args.results_dir}{case.name}-2ST-{k}.csv"
                 try:
                     partition, lines, runtime = _two_stage(
                         case,
@@ -106,7 +106,7 @@ def main():
 
             if "recursive" in args.algorithm:
                 try:
-                    path = f"results/mc/{case.name}-R-{k}.csv"
+                    path = f"{args.results_dir}{case.name}-R-{k}.csv"
                     partition, lines, runtime = _recursive(
                         case,
                         generator_groups,
@@ -128,7 +128,7 @@ def main():
 
             if "warm_start" in args.algorithm:
                 try:
-                    path = f"results/mc/{case.name}-R-{k}.csv"
+                    path = f"{args.results_dir}{case.name}-ws-{k}.csv"
                     partition, lines, runtime = _single_stage_warm_start(
                         case,
                         generator_groups,
@@ -141,7 +141,7 @@ def main():
                         partition,
                         lines,
                         runtime=runtime,
-                        algorithm="R",
+                        algorithm="ws",
                     ).to_csv(path)
 
                 except:
