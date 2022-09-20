@@ -38,7 +38,7 @@ def _single_stage_warm_start(case, generators, **kwargs):
     # Warm start the single stage model
     model = single_stage.maximum_congestion(G, generators, **kwargs)
     _warm_start(model, part_model, ls_model)
-    solver.solve(model, tee=True, warmstart=True, options=options)
+    solver.solve(model, tee=False, warmstart=True, options=options)
 
     partition = model_utils.get_partition(model)
     inactive_lines = model_utils.get_inactive_lines(model)

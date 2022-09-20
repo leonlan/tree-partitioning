@@ -1,25 +1,20 @@
-"""
-Objectives
-- Monotone results
-- Best clusters
-
-TODO Select best ratio
-"""
 from collections import defaultdict
 
 import networkx as nx
 
-_DELTA = 0.15
 
-
-def mst_gci(case, n_clusters: int):
+def mst_gci(case, n_clusters: int, _SPLIT=0.15):
     """
-    Find coherent generator groups using a minimum spanning tree algorithm.
+    Find generator groups using a minimum spanning tree algorithm.
+
     The identified MST is split iteratively such that each subtree contains
-    a generator group of reasonable size.
+    a generator group of reasonable size. This is at least _SPLIT fraction
+    per cluster.
     """
     G = nx.Graph(case.G)
-    T = nx.tree.minimum_spanning_tree(G)
+    neg = {e: {"neg_weight": -G.edges[e]["weight"]} for e in G.edges}
+    nx.set_edge_attributes(G, neg)  # TODO do testing
+    T = nx.tree.minimum_spanning_tree(G, weight="neg_weight")
 
     gen_idcs = get_gen_idcs(case.net)
 
@@ -36,7 +31,7 @@ def mst_gci(case, n_clusters: int):
             block0 = [cc for cc in nx.algorithms.connected_components(largest_cc)][0]
             n_gens = sum([1 for gen in gen_idcs if gen in block0])
 
-            if _DELTA <= n_gens / cc_gens <= 1 - _DELTA:
+            if _SPLIT <= n_gens / cc_gens <= 1 - _SPLIT:
                 # Remove edge from the tree if the component is of good size
                 T.remove_edge(*edge)
                 break
@@ -57,15 +52,18 @@ def mst_gci(case, n_clusters: int):
 
 
 def get_gen_idcs(net):
-    """Return the bus indices for generators."""
+    """
+    Return the bus indices of generators.
+    """
     # NOTE Use poly cost as proxy for being generator or not
     # because sometimes SGENS are included in gens (e.g., see IEEE-118)
     pc = net.poly_cost
+
     # NOTE do we also want to check for cost to filter non-generators??
     # gens = pc.loc[(pc.cp1_eur_per_mw > 0) & (pc.et == "gen"), "element"]
     gens = pc.loc[pc.et == "gen", "element"]
 
     # Ensure that the index is always feasible
     gens = list(set(gens.values) & set(net.gen.index.values))
-    genbuses = net.gen.loc[gens].bus.values
-    return genbuses
+    gen_idcs = net.gen.loc[gens].bus.values
+    return gen_idcs

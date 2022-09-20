@@ -90,4 +90,7 @@ def dcpf(G, load_shed=False, in_place=False):
         H = G.copy()
         nx.set_node_attributes(H, new_power_injections, "p_mw")
         nx.set_edge_attributes(H, new_flows, "f")
-        return H
+
+        # Positive power imbalance indicates more load than generation
+        power_imbalance = sum(nx.get_node_attributes(G, "p_mw").values())
+        return H, (power_imbalance if power_imbalance > 0 else 0)

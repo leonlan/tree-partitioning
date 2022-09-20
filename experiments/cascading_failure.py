@@ -1,18 +1,20 @@
 import argparse
 from collections import defaultdict
 from glob import glob
-from pathlib import Path
 
 import networkx as nx
 import numpy as np
-from experiment_pfd import two_stage_pfd
+import pyomo.environ as pyo
+from _two_stage import _two_stage
 
+import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.utils as utils
 from tree_partitioning.classes import Case
 from tree_partitioning.constants import _EPS
 from tree_partitioning.dcopf import dcopf
 from tree_partitioning.dcpf import dcpf
 from tree_partitioning.gci import mst_gci
+from tree_partitioning.line_switching import maximum_spanning_tree
 
 
 def parse_args():
@@ -20,8 +22,9 @@ def parse_args():
     parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
     parser.add_argument("--max_clusters", type=int, default=4)
     parser.add_argument("--min_size", type=int, default=30)
-    parser.add_argument("--max_size", type=int, default=1000)
-    parser.add_argument("--results_dir", type=str, default="res-cf/")
+    parser.add_argument("--max_size", type=int, default=30)
+    parser.add_argument("--gen_split", type=float, default=0.15)
+    parser.add_argument("--results_dir", type=str, default="results/cfs/")
 
     return parser.parse_args()
 
@@ -31,7 +34,19 @@ class Statistics:
     Store simulation statistics for cascading failures.
     """
 
-    def __init__(self):
+    def __init__(self, case, G, name, n_clusters):
+        # General stats
+        self.case = case
+        self.G = G
+        self.name = name
+        self.n_buses = len(G.nodes())
+        self.n_lines = len(G.edges())
+        self.n_clusters = n_clusters
+        self._edge_weights = nx.get_edge_attributes(G, "f")
+
+        # Cascading failure stats
+        self.lines: list[tuple] = []
+        self.lines_flow: list[tuple] = []
         self.lost_load: list[float] = []
         self.n_line_failures: list[int] = []
         self.n_gen_adjustments: list[int] = []
@@ -40,12 +55,14 @@ class Statistics:
 
     def collect(
         self,
+        line,
         lost_load,
         n_line_failures,
         n_gen_adjustments,
         n_alive_buses,
         n_final_components,
     ):
+        self.lines.append((line, round(self._edge_weights[line])))
         self.lost_load.append(lost_load)
         self.n_line_failures.append(n_line_failures)
         self.n_gen_adjustments.append(n_gen_adjustments)
@@ -59,6 +76,14 @@ class Statistics:
                     "; ".join(
                         str(val)
                         for val in [
+                            # Instance description
+                            self.case.name,
+                            self.name,
+                            self.n_buses,
+                            self.n_lines,
+                            self.n_clusters,
+                            # CF stats
+                            self.lines[idx],
                             self.lost_load[idx],
                             self.n_line_failures[idx],
                             self.n_gen_adjustments[idx],
@@ -70,9 +95,7 @@ class Statistics:
                 fi.write("\n")
 
 
-def cascading_failure(G, export_path="tmp-cf.txt"):
-    stats = Statistics()
-
+def cascading_failure(stats, G, export_path="tmp-cf.txt"):
     # Initiate a cascade for each possible line failure
     for line in G.edges:
         total_lost_load = 0
@@ -125,6 +148,7 @@ def cascading_failure(G, export_path="tmp-cf.txt"):
         n_final_components = len(final_components)
 
         stats.collect(
+            line,
             total_lost_load,
             n_line_failures,
             n_gen_adjustments=n_gen_adjustments,
@@ -178,20 +202,34 @@ def main():
 
         case = Case.from_file(path, merge_lines=True)
 
-        cascading_failure(case.G, f"res-cf/{case.name}-gci25-og.txt")
+        # Original network
+        name = f"{case.name}-original-split{args.gen_split}"
+        stats = Statistics(case, case.G, name, 1)
+        cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
+        solver = pyo.SolverFactory("gurobi", solver_io="python")
+        options = {"TimeLimit": 200}
 
         for k in range(2, args.max_clusters + 1):
+            generators = mst_gci(case, k)
+            partition, lines, runtime = _two_stage(
+                case,
+                generators,
+                partitioning_model=partitioning.power_flow_disruption,
+                line_switching_alg=maximum_spanning_tree,
+                solver=solver,
+                options=options,
+            )
+            post_G = case.G.copy()
+            post_G.remove_edges_from(lines)
+            post_G_dcopf = dcopf(post_G)
 
-            try:
-                generators = mst_gci(case, k)
-                res, post_G = two_stage_pfd(case, generators, time_limit=200)
-                cascading_failure(post_G, f"res-cf/{case.name}-{k}-gci25-tp.txt")
+            # k-TP'd OPF network
+            name = f"{case.name}-tp{k}-split{args.gen_split}"
+            stats = Statistics(case, case.G, name, k)
+            cascading_failure(stats, post_G_dcopf, f"{args.results_dir}{name}.txt")
 
-                post_G, _ = dcopf(post_G)
-                cascading_failure(post_G, f"res-cf/{case.name}-{k}-gci25-tp-opf.txt")
-
-            except Exception as e:
-                print(case.name, e)
+            # Original network with TP'd network power injections, DCOPF
+            name = f"{case-name}-og_pi_tp{k}-split{args.gen_split}"
 
 
 if __name__ == "__main__":

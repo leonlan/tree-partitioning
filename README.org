@@ -10,7 +10,7 @@ This repository contains implementations of tree partitioning algorithms present
 
 * Run stuff
 #+begin_src
-python -m tree_partitioning.transient_stability --max_size 30 --min_size 30 --n_clusters 4
+ poetry run python experiments/power_flow_disruption.py --max_size 30 --min_size 30 --max_clusters 3 --results_dir tmp/
 #+end_src
 
 * Logbook

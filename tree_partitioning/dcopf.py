@@ -11,63 +11,55 @@ def dcopf(G):
 
     Return a new graph with adjusted power flows and the load shedding.
     """
-    buses, lines = G.nodes, G.edges
-
-    # Define a model
     model = pyo.ConcreteModel("DC-PF with adjustments")
+    model.buses, model.lines = G.nodes, G.edges
 
-    # Define variables
-    model.adj = pyo.Var(buses, domain=pyo.NonNegativeReals)
-    model.adjm = pyo.Var(buses, domain=pyo.NonNegativeReals, bounds=(0, 1))
-    model.adjp = pyo.Var(buses, domain=pyo.NonNegativeReals, bounds=(0, 1))
-    model.theta = pyo.Var(buses, domain=pyo.Reals)
-    model.flow = pyo.Var(lines, domain=pyo.Reals)
+    model.adj = pyo.Var(model.buses, domain=pyo.NonNegativeReals)
+    model.adjm = pyo.Var(model.buses, domain=pyo.NonNegativeReals, bounds=(0, 1))
+    model.adjp = pyo.Var(model.buses, domain=pyo.NonNegativeReals, bounds=(0, 1))
+    model.theta = pyo.Var(model.buses, domain=pyo.Reals)
+    model.flow = pyo.Var(model.lines, domain=pyo.Reals)
 
-    # Either generation loss or load shedding
-    # Positive power imbalance indicates more load than generation
-    power_imbalance = sum(nx.get_node_attributes(G, "p_mw").values())
-
-    # Declare objective value
     @model.Objective(sense=pyo.minimize)
     def objective(m):
         """
         Maximize the gen adjustment or load shedding needed to get to a
         convergent solution.
         """
-        return sum(m.adj[bus] * abs(buses[bus]["p_mw"]) for bus in buses)
+        return sum(m.adj[bus] * abs(model.buses[bus]["p_mw"]) for bus in model.buses)
 
-    @model.Constraint(buses)
+    @model.Constraint(model.buses)
     def abs_adjustments(m, bus):
         return m.adj[bus] == m.adjp[bus] + m.adjm[bus]
 
     # Declare constraints
-    @model.Expression(buses)
+    @model.Expression(model.buses)
     def outgoing_flow(m, bus):
-        return sum(m.flow[line] for line in lines if line[0] == bus)
+        return sum(m.flow[line] for line in model.lines if line[0] == bus)
 
-    @model.Expression(buses)
+    @model.Expression(model.buses)
     def incoming_flow(m, bus):
-        return sum(m.flow[line] for line in lines if line[1] == bus)
+        return sum(m.flow[line] for line in model.lines if line[1] == bus)
 
-    @model.Constraint(buses)
+    @model.Constraint(model.buses)
     def flow_conservation(m, bus):
         lhs = m.outgoing_flow[bus] - m.incoming_flow[bus]
-        rhs = (1 + m.adjp[bus] - m.adjm[bus]) * buses[bus]["p_mw"]
+        rhs = (1 + m.adjp[bus] - m.adjm[bus]) * model.buses[bus]["p_mw"]
 
         return lhs == rhs
 
-    @model.Constraint(lines)
+    @model.Constraint(model.lines)
     def susceptance(m, *line):
         i, j, _ = line
-        return m.flow[line] == lines[line]["b"] * (m.theta[i] - m.theta[j])
+        return m.flow[line] == model.lines[line]["b"] * (m.theta[i] - m.theta[j])
 
-    @model.Constraint(lines)
+    @model.Constraint(model.lines)
     def no_congestion0(m, *line):
-        return m.flow[line] <= lines[line]["c"]
+        return m.flow[line] <= model.lines[line]["c"]
 
-    @model.Constraint(lines)
+    @model.Constraint(model.lines)
     def no_congestion1(m, *line):
-        return m.flow[line] >= -lines[line]["c"]
+        return m.flow[line] >= -model.lines[line]["c"]
 
     # Solve
     solver = pyo.SolverFactory("gurobi", solver_io="python")
@@ -91,4 +83,4 @@ def dcopf(G):
     new_flows = {k: v.value for k, v in model.flow.items()}
     nx.set_edge_attributes(H, new_flows, "f")
 
-    return H, (power_imbalance if power_imbalance > 0 else 0)
+    return H
