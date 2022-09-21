@@ -33,6 +33,7 @@ def parse_args():
         default="single_stage two_stage recursive warm_start",
         nargs="+",
     )
+    parser.add_argument("--results_dir", type=str, default="results/mc/")
 
     return parser.parse_args()
 

@@ -32,7 +32,7 @@ def parse_args():
         default="single_stage two_stage recursive ",
         nargs="+",
     )
-    parser.add_argument("--results_dir", type=str, default="results/mc/")
+    parser.add_argument("--results_dir", type=str, default="results/pfd/")
 
     return parser.parse_args()
 
