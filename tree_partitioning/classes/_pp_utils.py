@@ -83,6 +83,8 @@ def _netdict_from_pp_net(net, merge_lines):
     # Create df of the buses
     df_bus = net.res_bus
     df_bus.loc[net.gen.bus, "p_gen"] = -net.res_gen["p_mw"].values
+    df_bus.loc[net.gen.bus, "min_p_mw"] = -net.gen["min_p_mw"].values
+    df_bus.loc[net.gen.bus, "max_p_mw"] = -net.gen["max_p_mw"].values
     df_bus.loc[net.load.bus, "p_load"] = net.res_load["p_mw"].values
     df_bus.loc[net.ext_grid.bus, "p_ext_grid"] = -net.res_ext_grid["p_mw"].values
 

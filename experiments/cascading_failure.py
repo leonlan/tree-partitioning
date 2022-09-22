@@ -5,16 +5,21 @@ from glob import glob
 import networkx as nx
 import numpy as np
 import pyomo.environ as pyo
+from _single_stage_warm_start import _single_stage_warm_start
 from _two_stage import _two_stage
 
 import tree_partitioning.milp.partitioning as partitioning
+import tree_partitioning.milp.tree_partitioning as single_stage
 import tree_partitioning.utils as utils
 from tree_partitioning.classes import Case
 from tree_partitioning.constants import _EPS
 from tree_partitioning.dcopf import dcopf
+from tree_partitioning.dcopf_pp import dcopf_pp
 from tree_partitioning.dcpf import dcpf
 from tree_partitioning.gci import mst_gci
-from tree_partitioning.line_switching import maximum_spanning_tree
+from tree_partitioning.milp.line_switching import (
+    maximum_congestion as ls_maximum_congestion,
+)
 
 
 def parse_args():
@@ -200,36 +205,54 @@ def main():
         if n < args.min_size or n > args.max_size:
             continue
 
-        case = Case.from_file(path, merge_lines=True)
+        case = Case.from_file(path)
 
         # Original network
         name = f"{case.name}-original-split{args.gen_split}"
         stats = Statistics(case, case.G, name, 1)
         cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
         solver = pyo.SolverFactory("gurobi", solver_io="python")
-        options = {"TimeLimit": 200}
+        options = {"TimeLimit": 100}
 
         for k in range(2, args.max_clusters + 1):
             generators = mst_gci(case, k)
-            partition, lines, runtime = _two_stage(
-                case,
-                generators,
-                partitioning_model=partitioning.power_flow_disruption,
-                line_switching_alg=maximum_spanning_tree,
-                solver=solver,
-                options=options,
-            )
-            post_G = case.G.copy()
-            post_G.remove_edges_from(lines)
-            post_G_dcopf = dcopf(post_G)
 
-            # k-TP'd OPF network
-            name = f"{case.name}-tp{k}-split{args.gen_split}"
-            stats = Statistics(case, case.G, name, k)
-            cascading_failure(stats, post_G_dcopf, f"{args.results_dir}{name}.txt")
+            name = f"{case.name}-tp{k}-2st-split{args.gen_split}"
+            try:
+                partition, lines, runtime = _two_stage(
+                    case,
+                    generators,
+                    partitioning_model=partitioning.power_flow_disruption,
+                    line_switching_model=ls_maximum_congestion,
+                    solver=solver,
+                    options=options,
+                )
+                post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
+                # k-TP'd OPF network
+                stats = Statistics(case, post_G_dcopf, name, k)
+                cascading_failure(stats, post_G_dcopf, f"{args.results_dir}{name}.txt")
+            except:
+                print(name, "failed")
 
-            # Original network with TP'd network power injections, DCOPF
-            name = f"{case-name}-og_pi_tp{k}-split{args.gen_split}"
+                name = f"{case.name}-tp{k}-ws-split{args.gen_split}"
+                try:
+                    partition, lines, runtime = _single_stage_warm_start(
+                        case,
+                        generators,
+                        line_switching_model=ls_maximum_congestion,
+                        solver=solver,
+                        options=options,
+                    )
+
+                    post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
+
+                    # k-TP'd OPF network
+                    stats = Statistics(case, post_G_dcopf, name, k)
+                    cascading_failure(
+                        stats, post_G_dcopf, f"{args.results_dir}{name}.txt"
+                    )
+                except:
+                    print(name, "failed")
 
 
 if __name__ == "__main__":

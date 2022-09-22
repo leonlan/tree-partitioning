@@ -28,5 +28,3 @@ def _sanity_check(G, generators, partition, lines):
     assert len(G.nodes) == len(G_post.nodes)
 
     assert ReducedGraph(G_post, partition).is_tree()
-
-    print("Sanity check passed.")

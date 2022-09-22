@@ -14,7 +14,7 @@ def _single_stage(case, generators, tree_partitioning_alg, **kwargs):
 
     solver, options = kwargs["solver"], kwargs["options"]
     print(options)
-    solver.solve(model, tee=True, options=options)
+    solver.solve(model, tee=False, options=options)
 
     partition = model_utils.get_partition(model)
     inactive_lines = model_utils.get_inactive_lines(model)

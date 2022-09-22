@@ -1,10 +1,8 @@
 import networkx as nx
 import pyomo.environ as pyo
 
-from tree_partitioning.constants import _EPS
 
-
-def dcopf(G):
+def dcopf(G, adjustments=True):
     """
     Solve DC power flow for the passed-in graph G with possibly load shedding
     or generation adjustments.
