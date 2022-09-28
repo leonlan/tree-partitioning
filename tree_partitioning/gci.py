@@ -3,18 +3,22 @@ from collections import defaultdict
 import networkx as nx
 
 
-def mst_gci(case, n_clusters: int, _SPLIT=0.15):
+def mst_gci(case, n_clusters: int, weight="neg_weight"):
     """
     Find generator groups using a minimum spanning tree algorithm.
 
     The identified MST is split iteratively such that each subtree contains
-    a generator group of reasonable size. This is at least _SPLIT fraction
-    per cluster.
+    a generator group. The spanning trees are split in such a way that the
+    ratio between the two groups is as close to one as possible.
     """
     G = nx.Graph(case.G)
+
+    # Compute negative weights, e.g., maximum flow spanning tree
+    # which should be used as default weight unless specified otherwise.
     neg = {e: {"neg_weight": -G.edges[e]["weight"]} for e in G.edges}
-    nx.set_edge_attributes(G, neg)  # TODO do testing
-    T = nx.tree.minimum_spanning_tree(G, weight="neg_weight")
+    nx.set_edge_attributes(G, neg)
+
+    T = nx.tree.minimum_spanning_tree(G, weight=weight)
 
     gen_idcs = get_gen_idcs(case.net)
 
@@ -25,19 +29,27 @@ def mst_gci(case, n_clusters: int, _SPLIT=0.15):
         largest_cc = nx.Graph(T.subgraph(max(components, key=len)))
         cc_gens = sum([1 for gen in gen_idcs if gen in largest_cc])
 
-        # TODO select edge with best_ratio
+        # Find the best split edge
+        best_split_diff = None  # difference between n_gen1 and n_gen2
+        best_split_edge = None
+
         for edge in largest_cc.edges:
+            # Remove the edge and find how many edges are in one block
             largest_cc.remove_edge(*edge)
             block0 = [cc for cc in nx.algorithms.connected_components(largest_cc)][0]
-            n_gens = sum([1 for gen in gen_idcs if gen in block0])
+            n_gens1 = sum([1 for gen in gen_idcs if gen in block0])
+            n_gens2 = cc_gens - n_gens1
+            diff = abs(n_gens1 - n_gens2)
 
-            if _SPLIT <= n_gens / cc_gens <= 1 - _SPLIT:
-                # Remove edge from the tree if the component is of good size
-                T.remove_edge(*edge)
-                break
-            else:
-                # Add edge back and go to the next edge
-                largest_cc.add_edge(*edge)
+            if best_split_diff is None or diff < best_split_diff:
+                best_split_diff = diff
+                best_split_edge = edge
+                print(diff)
+
+            largest_cc.add_edge(*edge)
+
+        # Remove edge from T with the best split
+        T.remove_edge(*best_split_edge)
 
     # Retrieve the generators from each component
     components = [cc for cc in nx.algorithms.connected_components(T)]

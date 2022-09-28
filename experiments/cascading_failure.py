@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("--max_clusters", type=int, default=4)
     parser.add_argument("--min_size", type=int, default=30)
     parser.add_argument("--max_size", type=int, default=30)
-    parser.add_argument("--gen_split", type=float, default=0.15)
+    parser.add_argument("--gci_weight", type=str, default="neg_weight")
     parser.add_argument("--results_dir", type=str, default="results/cfs/")
 
     return parser.parse_args()
@@ -208,49 +208,50 @@ def main():
         case = Case.from_file(path)
 
         # Original network
-        name = f"{case.name}-original-split{args.gen_split}"
+        name = f"{case.name}-original-{args.gci_weight}"
         stats = Statistics(case, case.G, name, 1)
         cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
         solver = pyo.SolverFactory("gurobi", solver_io="python")
-        options = {"TimeLimit": 100}
+        options = {"TimeLimit": 60}
 
         for k in range(2, args.max_clusters + 1):
-            generators = mst_gci(case, k)
+            generators = mst_gci(case, k, weight=args.gci_weight)
 
-            name = f"{case.name}-tp{k}-2st-split{args.gen_split}"
+            name = f"{case.name}-ws-{args.gci_weight}"
             try:
-                partition, lines, runtime = _two_stage(
+                partition, lines, runtime = _single_stage_warm_start(
                     case,
                     generators,
-                    partitioning_model=partitioning.power_flow_disruption,
                     line_switching_model=ls_maximum_congestion,
                     solver=solver,
                     options=options,
                 )
+
                 post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
+
                 # k-TP'd OPF network
                 stats = Statistics(case, post_G_dcopf, name, k)
                 cascading_failure(stats, post_G_dcopf, f"{args.results_dir}{name}.txt")
-            except:
-                print(name, "failed")
 
-                name = f"{case.name}-tp{k}-ws-split{args.gen_split}"
+            except:
+                name = f"{case.name}-2st-{args.gci_weight}"
                 try:
-                    partition, lines, runtime = _single_stage_warm_start(
+                    partition, lines, runtime = _two_stage(
                         case,
                         generators,
+                        partitioning_model=partitioning.power_flow_disruption,
                         line_switching_model=ls_maximum_congestion,
                         solver=solver,
                         options=options,
                     )
-
                     post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
-
                     # k-TP'd OPF network
                     stats = Statistics(case, post_G_dcopf, name, k)
                     cascading_failure(
                         stats, post_G_dcopf, f"{args.results_dir}{name}.txt"
                     )
+                    print(name, "failed")
+
                 except:
                     print(name, "failed")
 
