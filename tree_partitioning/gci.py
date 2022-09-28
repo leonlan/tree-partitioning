@@ -44,7 +44,6 @@ def mst_gci(case, n_clusters: int, weight="neg_weight"):
             if best_split_diff is None or diff < best_split_diff:
                 best_split_diff = diff
                 best_split_edge = edge
-                print(diff)
 
             largest_cc.add_edge(*edge)
 

@@ -28,8 +28,8 @@ def parse_args():
     parser.add_argument("--min_size", type=int, default=0)
     parser.add_argument(
         "--algorithm",
-        choices=["single_stage", "two_stage", "recursive"],
-        default="single_stage two_stage recursive ",
+        choices=["single_stage", "two_stage"],
+        default="single_stage two_stage",
         nargs="+",
     )
     parser.add_argument("--results_dir", type=str, default="results/pfd/")
@@ -98,27 +98,6 @@ def main():
                         lines,
                         runtime=runtime,
                         algorithm="2ST",
-                    ).to_csv(path)
-
-                except:
-                    print(path, "failed")
-            if "recursive" in args.algorithm:
-                try:
-                    path = f"{args.results_dir}{case.name}-R-{k}.csv"
-                    partition, lines, runtime = _recursive(
-                        case,
-                        generator_groups,
-                        partitioning_model=partitioning.power_flow_disruption,
-                        line_switching_alg=brute_force.power_flow_disruption,
-                        **config,
-                    )
-                    make_result(
-                        case,
-                        generator_groups,
-                        partition,
-                        lines,
-                        runtime=runtime,
-                        algorithm="R",
                     ).to_csv(path)
 
                 except:

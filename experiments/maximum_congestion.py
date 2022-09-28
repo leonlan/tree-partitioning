@@ -29,8 +29,8 @@ def parse_args():
     parser.add_argument("--min_size", type=int, default=30)
     parser.add_argument(
         "--algorithm",
-        choices=["single_stage", "two_stage", "recursive", "warm_start"],
-        default="single_stage two_stage recursive warm_start",
+        choices=["single_stage", "two_stage", "warm_start"],
+        default="single_stage two_stage warm_start",
         nargs="+",
     )
     parser.add_argument("--results_dir", type=str, default="results/mc/")
@@ -100,28 +100,6 @@ def main():
                         lines,
                         runtime=runtime,
                         algorithm="2ST",
-                    ).to_csv(path)
-
-                except:
-                    print(path, "failed")
-
-            if "recursive" in args.algorithm:
-                try:
-                    path = f"{args.results_dir}{case.name}-R-{k}.csv"
-                    partition, lines, runtime = _recursive(
-                        case,
-                        generator_groups,
-                        partitioning_model=partitioning.power_flow_disruption,
-                        line_switching_alg=brute_force.maximum_congestion,
-                        **config,
-                    )
-                    make_result(
-                        case,
-                        generator_groups,
-                        partition,
-                        lines,
-                        runtime=runtime,
-                        algorithm="R",
                     ).to_csv(path)
 
                 except:
