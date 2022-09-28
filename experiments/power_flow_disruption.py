@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from glob import glob
+from pathlib import Path
 
 import _utils
 import pyomo.environ as pyo
@@ -33,6 +34,7 @@ def parse_args():
         nargs="+",
     )
     parser.add_argument("--results_dir", type=str, default="results/pfd/")
+    parser.add_argument("--gci_weight", type=str, default="neg_weight")
 
     return parser.parse_args()
 
@@ -50,6 +52,8 @@ def main():
     instances = sorted(glob(args.instance_pattern), key=_utils.name2size)
     config = setup_config(args)
 
+    Path(args.results_dir).mkdir(exist_ok=True, parents=True)
+
     for path in instances:
 
         if not (args.min_size <= _utils.name2size(path) <= args.max_size):
@@ -59,7 +63,7 @@ def main():
         print(case.name)
 
         for k in range(args.min_clusters, args.max_clusters + 1):
-            generator_groups = mst_gci(case, k)
+            generator_groups = mst_gci(case, k, weight=args.gci_weight)
 
             if "single_stage" in args.algorithm:
                 path = f"{args.results_dir}{case.name}-1ST-{k}.csv"
