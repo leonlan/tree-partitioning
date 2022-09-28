@@ -80,8 +80,8 @@ def main():
                         runtime=runtime,
                         algorithm="1ST",
                     ).to_csv(path)
-                except:
-                    print(path, "failed")
+                except Exception as e:
+                    print(path, e)
 
             if "two_stage" in args.algorithm:
                 path = f"{args.results_dir}{case.name}-2ST-{k}.csv"
