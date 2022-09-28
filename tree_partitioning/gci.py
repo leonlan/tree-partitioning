@@ -24,9 +24,12 @@ def mst_gci(case, n_clusters: int, weight="neg_weight"):
 
     # Find which edges need to be removed from the tree such that each
     # subtree is split roughly in half.
+    def compute_n_gens(comp):
+        return sum([1 for gen in gen_idcs if gen in comp])
+
     for _ in range(n_clusters - 1):
         components = [cc for cc in nx.algorithms.connected_components(T)]
-        largest_cc = nx.Graph(T.subgraph(max(components, key=len)))
+        largest_cc = nx.Graph(T.subgraph(max(components, key=compute_n_gens)))
         cc_gens = sum([1 for gen in gen_idcs if gen in largest_cc])
 
         # Find the best split edge
