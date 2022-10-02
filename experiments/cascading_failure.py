@@ -3,6 +3,7 @@ from collections import defaultdict
 from glob import glob
 from pathlib import Path
 
+import _utils
 import networkx as nx
 import numpy as np
 import pyomo.environ as pyo
@@ -199,8 +200,9 @@ def adjusted_gens(G, final_components):
 
 def main():
     args = parse_args()
+    instances = sorted(glob(args.instance_pattern), key=_utils.name2size)
 
-    for path in sorted(glob(args.instance_pattern)):
+    for path in instances:
         n = utils.name2size(path)
 
         if n < args.min_size or n > args.max_size:

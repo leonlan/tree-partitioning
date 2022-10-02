@@ -27,4 +27,6 @@ def _sanity_check(G, generators, partition, lines):
     assert len(G.edges) == len(G_post.edges) + len(lines)
     assert len(G.nodes) == len(G_post.nodes)
 
-    assert ReducedGraph(G_post, partition).is_tree()
+    rg = ReducedGraph(G_post, partition)
+    assert rg.is_tree()
+    assert len(rg.RG.edges) == len(generators) - 1
