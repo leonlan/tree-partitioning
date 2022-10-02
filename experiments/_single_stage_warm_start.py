@@ -55,18 +55,18 @@ def _warm_start(tp_model, part_model, ls_model):
     """
     # Base partitioning
     for k, v in part_model.assign_bus.items():
-        tp_model.assign_bus[k] = v()
+        tp_model.assign_bus[k] = round(v())
 
     for k, v in part_model.assign_line.items():
-        tp_model.assign_line[k] = v()
+        tp_model.assign_line[k] = round(v())
 
     # Base line switching
     # Active lines in ls_model are only active cross edges
     for k, v in ls_model.active_line.items():
-        tp_model.active_line[k] = v() if v() is not None else 1
+        tp_model.active_line[k] = round(v()) if v() is not None else 1
 
     for k, v in ls_model.active_line.items():
-        tp_model.active_cross_edge[k] = v() if v() is not None else 0
+        tp_model.active_cross_edge[k] = round(v()) if v() is not None else 0
 
     # Max. cong. line switching
     tp_model.gamma = ls_model.gamma()
