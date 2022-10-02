@@ -1,6 +1,7 @@
 import argparse
 from collections import defaultdict
 from glob import glob
+from pathlib import Path
 
 import networkx as nx
 import numpy as np
@@ -206,6 +207,7 @@ def main():
             continue
 
         case = Case.from_file(path)
+        Path(args.results_dir).mkdir(exist_ok=True, parents=True)
 
         # Original network
         name = f"{case.name}-original-{args.gci_weight}"

@@ -3,7 +3,7 @@
 #SBATCH --constraint=gold_6130
 #SBATCH --nodes 1
 #SBATCH -t 18:00:00
-#SBATCH --mail=l.lan@vu.nl
+#SBATCH --mail-user=l.lan@vu.nl
 #SBATCH --mail-type=BEGIN,END
 LANG=en_US.UTF-8
 
@@ -14,5 +14,5 @@ module load 2021
 module load Python/3.9.5-GCCcore-10.3.0
 
 echo start of job
-poetry run python experiments/power_flow_disruption.py --time_limit 600 --max_clusters 5 --gci_weight $1 --results_dir $2
+poetry run python experiments/power_flow_disruption.py --time_limit 600 --max_clusters 5 --max_size 3000 --gci_weight $1 --results_dir $2
 echo end of job
