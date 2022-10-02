@@ -221,7 +221,7 @@ def main():
         for k in range(2, args.max_clusters + 1):
             generators = mst_gci(case, k, weight=args.gci_weight)
 
-            name = f"{case.name}-ws-{args.gci_weight}"
+            name = f"{case.name}-ws{k}-{args.gci_weight}"
             try:
                 partition, lines, runtime = _single_stage_warm_start(
                     case,
@@ -238,7 +238,7 @@ def main():
                 cascading_failure(stats, post_G_dcopf, f"{args.results_dir}{name}.txt")
 
             except:
-                name = f"{case.name}-2st-{args.gci_weight}"
+                name = f"{case.name}-2st{k}-{args.gci_weight}"
                 try:
                     partition, lines, runtime = _two_stage(
                         case,
