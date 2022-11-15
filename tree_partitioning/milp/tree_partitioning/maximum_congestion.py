@@ -43,7 +43,8 @@ def maximum_congestion(G, generators, **kwargs):
 
     @m.Constraint(m.buses)
     def flow_conservation(m, bus):
-        return m.outgoing_flow[bus] - m.incoming_flow[bus] == m.bus_data[bus]["p_mw"]
+        net_power = m.bus_data[bus]["p_load_total"] - m.bus_data[bus]["p_gen_total"]
+        return m.outgoing_flow[bus] - m.incoming_flow[bus] == net_power
 
     @m.Expression(m.lines)
     def dc_eq(m, *line):

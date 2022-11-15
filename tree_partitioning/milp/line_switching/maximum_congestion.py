@@ -42,7 +42,9 @@ def maximum_congestion(G, partition, **kwargs):
     def flow_conservation(m, bus):
         out = sum(m.flow[i, j, idx] for (i, j, idx) in m.lines if i == bus)
         inc = sum(m.flow[i, j, idx] for (i, j, idx) in m.lines if j == bus)
-        return out - inc == m.bus_data[bus]["p_mw"]
+        net_power = m.bus_data[bus]["p_load_total"] - m.bus_data[bus]["p_gen_total"]
+
+        return out - inc == net_power
 
     # For some reason, cross_edges elements are flattened tuples
     # (u, v, i, j, k) instead of (u, v, (i, j, k))
