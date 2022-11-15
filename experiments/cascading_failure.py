@@ -7,6 +7,7 @@ import _utils
 import networkx as nx
 import numpy as np
 import pyomo.environ as pyo
+from _single_stage import _single_stage
 from _single_stage_warm_start import _single_stage_warm_start
 from _two_stage import _two_stage
 
@@ -212,9 +213,9 @@ def main():
         Path(args.results_dir).mkdir(exist_ok=True, parents=True)
 
         # Original network
-        name = f"{case.name}-original-{args.gci_weight}"
-        stats = Statistics(case, case.G, name, 1)
-        cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
+        # name = f"{case.name}-original-{args.gci_weight}"
+        # stats = Statistics(case, case.G, name, 1)
+        # cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
         solver = pyo.SolverFactory("gurobi", solver_io="python")
         options = {"TimeLimit": 60}
 
@@ -223,41 +224,48 @@ def main():
 
             name = f"{case.name}-ws{k}-{args.gci_weight}"
             try:
-                partition, lines, runtime = _single_stage_warm_start(
+                partition, lines, runtime = _single_stage(
                     case,
                     generators,
-                    line_switching_model=ls_maximum_congestion,
+                    tree_partitioning_alg=single_stage.power_flow_disruption,
                     solver=solver,
                     options=options,
                 )
+                # partition, lines, runtime = single_stage(
+                #     case,
+                #     generators,
+                #     line_switching_model=ls_maximum_congestion,
+                # )
 
                 post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
 
                 # k-TP'd OPF network
                 stats = Statistics(case, post_G_dcopf, name, k)
+                print("Start: ", name)
                 cascading_failure(stats, post_G_dcopf, f"{args.results_dir}{name}.txt")
 
-            except:
-                name = f"{case.name}-2st{k}-{args.gci_weight}"
-                try:
-                    partition, lines, runtime = _two_stage(
-                        case,
-                        generators,
-                        partitioning_model=partitioning.power_flow_disruption,
-                        line_switching_model=ls_maximum_congestion,
-                        solver=solver,
-                        options=options,
-                    )
-                    post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
-                    # k-TP'd OPF network
-                    stats = Statistics(case, post_G_dcopf, name, k)
-                    cascading_failure(
-                        stats, post_G_dcopf, f"{args.results_dir}{name}.txt"
-                    )
-                    print(name, "failed")
+            except Exception as e:
+                # name = f"{case.name}-2st{k}-{args.gci_weight}"
+                # try:
+                #     partition, lines, runtime = _two_stage(
+                #         case,
+                #         generators,
+                #         partitioning_model=partitioning.power_flow_disruption,
+                #         line_switching_model=ls_maximum_congestion,
+                #         solver=solver,
+                #         options=options,
+                #     )
+                #     post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
+                #     # k-TP'd OPF network
+                #     stats = Statistics(case, post_G_dcopf, name, k)
+                #     cascading_failure(
+                #         stats, post_G_dcopf, f"{args.results_dir}{name}.txt"
+                #     )
+                #     print(name, "failed")
 
-                except:
-                    print(name, "failed")
+                # except:
+                print(e)
+                print(name, "failed")
 
 
 if __name__ == "__main__":
