@@ -3,8 +3,6 @@ import pyomo.environ as pyo
 
 from tree_partitioning.constants import _EPS
 
-_EPS = 0.00
-
 
 def dcpf(G, in_place=False):
     """
@@ -25,9 +23,7 @@ def dcpf(G, in_place=False):
     model.theta = pyo.Var(buses, domain=pyo.Reals)
     model.flow = pyo.Var(lines, domain=pyo.Reals)
 
-    # Either generation loss or load shedding
-    # Positive power imbalance indicates more load than generation
-    power_imbalance = sum(nx.get_node_attributes(G, "p_mw").values())
+    power_imbalance = get_power_imbalance(G)
 
     if power_imbalance >= 0:
         model.no_gen_adj = pyo.Constraint(expr=model.gen_adjustment >= 1 - _EPS)
@@ -92,6 +88,15 @@ def dcpf(G, in_place=False):
         nx.set_node_attributes(H, new_p_load_total, "p_load_total")
         nx.set_edge_attributes(H, new_flows, "f")
 
-        # Positive power imbalance indicates more load than generation
-        power_imbalance = sum(nx.get_node_attributes(G, "p_mw").values())
+        power_imbalance = get_power_imbalance(G)
         return H, (power_imbalance if power_imbalance > 0 else 0)
+
+
+def get_power_imbalance(G):
+    """
+    Return the power imbalance. Positive power imbalance indicates means that
+    there is more load than generation.
+    """
+    load = sum(nx.get_node_attributes(G, "p_load_total").values())
+    generation = sum(nx.get_node_attributes(G, "p_gen_total").values())
+    return load - generation

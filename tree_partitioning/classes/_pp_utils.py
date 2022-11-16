@@ -103,6 +103,9 @@ def _netdict_from_pp_net(net, merge_lines):
 
     df_bus = df_bus.fillna(0)  # unfilled entries
 
+    # TODO see issue https://github.com/leonlan/tree-partitioning/issues/4
+    df_bus = df_bus.round(5)
+
     # The total generation and load is useful for cascading failures, where we
     # need fine grained control over the generation and/or load to do load shedding
     df_bus["p_gen_total"] = (
@@ -112,6 +115,7 @@ def _netdict_from_pp_net(net, merge_lines):
         df_bus["p_load"] + df_bus["p_shunt"] + np.maximum(-df_bus["p_ext_grid"], 0)
     )
 
+    # Check that p_mw is the same as the total load minus total generation
     assert_almost_equal(
         df_bus["p_mw"].values, (df_bus["p_load_total"] - df_bus["p_gen_total"]).values
     )
