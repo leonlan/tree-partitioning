@@ -2,13 +2,10 @@ import numpy as np
 import pandapower as pp
 import pandapower.converter as pc
 import pandas as pd
+from numpy.testing import assert_almost_equal
 
 
-def _load_pp_case(
-    path: str,
-    opf_init: bool,
-    ac: bool,
-):
+def _load_pp_case(path: str, opf_init: bool, ac: bool):
     """
     Loads the selected test case.
 
@@ -46,7 +43,6 @@ def _netdict_from_pp_net(net, merge_lines):
     # Change load/generator power injections setpoints according to OPF
     net.load["p_mw"] = net.res_load["p_mw"]
     net.gen["p_mw"] = net.res_gen["p_mw"]
-    bus_load = net.res_bus.p_mw
 
     # Change edge names to L#/T#
     net.line["name"] = [f"L{idx}" for idx in net.line.index]
@@ -82,18 +78,47 @@ def _netdict_from_pp_net(net, merge_lines):
 
     # Create df of the buses
     df_bus = net.res_bus
-    df_bus.loc[net.gen.bus, "p_gen"] = -net.res_gen["p_mw"].values
-    df_bus.loc[net.gen.bus, "min_p_mw"] = -net.gen["min_p_mw"].values
-    df_bus.loc[net.gen.bus, "max_p_mw"] = -net.gen["max_p_mw"].values
+    df_bus["p_mw"] = df_bus["p_mw"]  # positive is net consumption
+    df_bus.loc[net.gen.bus, "p_gen"] = net.res_gen["p_mw"].values
+    df_bus.loc[net.gen.bus, "min_p_mw"] = net.gen["min_p_mw"].values
+    df_bus.loc[net.gen.bus, "max_p_mw"] = net.gen["max_p_mw"].values
     df_bus.loc[net.load.bus, "p_load"] = net.res_load["p_mw"].values
-    df_bus.loc[net.ext_grid.bus, "p_ext_grid"] = -net.res_ext_grid["p_mw"].values
 
-    if hasattr(net, "sgen"):
+    # External grid: positive is net consumption
+    df_bus.loc[net.ext_grid.bus, "p_ext_grid"] = net.res_ext_grid["p_mw"].values
+
+    if not net.sgen.empty:  # has static generators
         # There could be multiple generators to one bus
         sgen_bus_idx = net.sgen.bus.unique()
         temp_df_bus = pd.concat([net.sgen["bus"], net.res_sgen["p_mw"]], axis=1)
         p_sgen = temp_df_bus.groupby(["bus"]).sum()["p_mw"]
-        df_bus.loc[sgen_bus_idx, "p_sgen"] = -p_sgen
+        df_bus.loc[sgen_bus_idx, "p_sgen"] = p_sgen
+    else:
+        df_bus["p_sgen"] = 0
+
+    if not net.shunt.empty:
+        df_bus.loc[net.shunt.bus, "p_shunt"] = net.res_shunt["p_mw"].values
+    else:
+        df_bus["p_shunt"] = 0
+
+    df_bus = df_bus.fillna(0)  # unfilled entries
+
+    # TODO see issue https://github.com/leonlan/tree-partitioning/issues/4
+    df_bus = df_bus.round(5)
+
+    # The total generation and load is useful for cascading failures, where we
+    # need fine grained control over the generation and/or load to do load shedding
+    df_bus["p_gen_total"] = (
+        df_bus["p_gen"] + df_bus["p_sgen"] + np.maximum(df_bus["p_ext_grid"], 0)
+    )
+    df_bus["p_load_total"] = (
+        df_bus["p_load"] + df_bus["p_shunt"] + np.maximum(-df_bus["p_ext_grid"], 0)
+    )
+
+    # Check that p_mw is the same as the total load minus total generation
+    assert_almost_equal(
+        df_bus["p_mw"].values, (df_bus["p_load_total"] - df_bus["p_gen_total"]).values
+    )
 
     # Consider merging lines
     if merge_lines:

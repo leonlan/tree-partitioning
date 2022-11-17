@@ -1,12 +1,5 @@
 import functools
-import itertools
-import os
 from pathlib import Path
-
-import networkx as nx
-import numpy as np
-import pandapower as pp
-import pandas as pd
 
 from ._nx_utils import _G_from_netdict
 from ._pp_utils import _load_pp_case, _netdict_from_pp_net
@@ -18,18 +11,19 @@ class Case:
 
     This class contains multiple representation of the network, among others:
     - a pandapower power network (net)
-    - a generic dictionary representation of the network buses and lines (netdict)
     - a networkx graph (G)
+    - a generic dictionary representation of the network (netdict)
 
-    These multiple representations are helpful as some computations are implemented
-    for e.g. pandapower only.
+    These multiple representations are helpful as some computations are
+    implemented for e.g. pandapower only.
 
     """
 
-    _name: str
-    _net: ...
-    _netdict: dict
-    _G: nx.MultiDiGraph
+    def __init__(self, name, net, netdict, G):
+        self._name = name
+        self._net = net
+        self._netdict = netdict
+        self._G = G
 
     @property
     def name(self) -> str:
@@ -46,13 +40,14 @@ class Case:
     @classmethod
     @functools.lru_cache(maxsize=None)
     def from_file(cls, path, merge_lines=False, opf_init=True, ac=False):
-        case = cls()
-        case._name = str(path).split("pglib_opf_")[-1].split(".mat")[0]
-        case._net = _load_pp_case(path, opf_init, ac)
-        case._netdict = _netdict_from_pp_net(case._net, merge_lines)
-        case._G = _G_from_netdict(case._netdict)
+        path = Path(path)
 
-        return case
+        name = path.stem
+        net = _load_pp_case(path, opf_init, ac)
+        netdict = _netdict_from_pp_net(net, merge_lines)
+        G = _G_from_netdict(netdict)
+
+        return cls(name, net, netdict, G)
 
     def __str__(self):
         return f"Case object for test case {self.name}."

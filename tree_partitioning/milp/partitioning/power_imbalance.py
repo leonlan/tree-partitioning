@@ -11,7 +11,7 @@ def power_imbalance(G, generators, recursive=False, **kwargs):
     @model.Expression(model.clusters)
     def total_power_imbalance(m, cluster):
         return sum(
-            data["p_mw"] * model.assign_bus[bus, cluster]
+            data["p_load_total"] - data["p_gen_total"] * model.assign_bus[bus, cluster]
             for bus, data in model.bus_data.items()
         )
 

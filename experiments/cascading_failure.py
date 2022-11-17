@@ -137,7 +137,6 @@ def cascading_failure(stats, G, export_path="tmp-cf.txt"):
                 for comp in new_comps:
                     comp, lost_load = dcpf(comp)
                     total_lost_load += lost_load
-
                     new_components.append(comp)
 
             overloaded = []
@@ -213,9 +212,9 @@ def main():
         Path(args.results_dir).mkdir(exist_ok=True, parents=True)
 
         # Original network
-        # name = f"{case.name}-original-{args.gci_weight}"
-        # stats = Statistics(case, case.G, name, 1)
-        # cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
+        name = f"{case.name}-original-{args.gci_weight}"
+        stats = Statistics(case, case.G, name, 1)
+        cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
         solver = pyo.SolverFactory("gurobi", solver_io="python")
         options = {"TimeLimit": 60}
 
