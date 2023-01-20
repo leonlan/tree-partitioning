@@ -8,15 +8,21 @@ def _single_commodity_flow(m):
     """
     m.commodity_flow = pyo.Var(m.lines, domain=pyo.Reals)
 
+    source_bus = min(m.buses)
+
     @m.Constraint()
     def commodity_flow_source_bus(m):
-        rhs1 = sum([m.commodity_flow[i, j, idx] for (i, j, idx) in m.lines if i == 0])
-        rhs2 = sum([m.commodity_flow[j, i, idx] for (j, i, idx) in m.lines if i == 0])
+        rhs1 = sum(
+            [m.commodity_flow[i, j, idx] for (i, j, idx) in m.lines if i == source_bus]
+        )
+        rhs2 = sum(
+            [m.commodity_flow[j, i, idx] for (j, i, idx) in m.lines if i == source_bus]
+        )
         return rhs1 - rhs2 == len(m.buses) - 1
 
     @m.Constraint(m.buses)
     def commodity_flow_sink_buses(m, bus):
-        if bus != 0:
+        if bus != source_bus:
             rhs1 = sum([m.commodity_flow[i, j, x] for (i, j, x) in m.lines if i == bus])
             rhs2 = sum([m.commodity_flow[j, i, x] for (j, i, x) in m.lines if i == bus])
             return rhs1 - rhs2 == -1
