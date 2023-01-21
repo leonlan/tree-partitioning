@@ -14,7 +14,7 @@ from Result import make_result
 import tree_partitioning.line_switching.brute_force as brute_force
 import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
-from tree_partitioning.classes import Case
+from tree_partitioning.classes import Case, Solution
 from tree_partitioning.gci import mst_gci
 from tree_partitioning.line_switching import maximum_spanning_tree
 
@@ -59,7 +59,7 @@ def main():
         if not (args.min_size <= _utils.name2size(path) <= args.max_size):
             continue
 
-        case = Case.from_file(path, merge_lines=True)
+        case = Case.from_file(path, merge_lines=False)
         print(case.name)
 
         for k in range(args.min_clusters, args.max_clusters + 1):
@@ -82,8 +82,13 @@ def main():
                         runtime=runtime,
                         algorithm="1ST",
                     ).to_csv(path)
-                except:
-                    print(path, "failed")
+
+                    sol = Solution(case, generator_groups, partition, lines)
+                    sol.plot(
+                        f"tmp/figs/{Path(path).stem}.png", post=False, undirected=True
+                    )
+                except Exception as e:
+                    print(path, e)
 
             if "two_stage" in args.algorithm:
                 path = f"{args.results_dir}{case.name}-2ST-{k}.csv"

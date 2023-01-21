@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import networkx as nx
-import pandapower as pp
 
 from .Case import Case
 from .Partition import Partition
-from .ReducedGraph import ReducedGraph
 
 
 class Solution:
@@ -30,66 +28,60 @@ class Solution:
         self.post_switching_graph = self.G.copy()
         self.post_switching_graph.remove_edges_from(switched_lines)
 
-    def plot(self, path: str, show=False, post=True):
+    def plot(self, path: str, show=False, undirected=True, post=True):
         nc = [
             "#ea9999",  # red
-            "#a4c2f4",
+            "#a4c2f4",  # blue
             "#b6d7a8",
             "#b4a7d6",  # purple
             "#f9cb9c",
             "#eeeeee",  # Grey
         ]
 
-        ec = ["#db4c39", "#2a7afa", "#8fd46a", "#595959"]
-
-        # # Undirected graph has better visuals
-        G = self.G.to_undirected()
-
-        # TODO for all lines  that there is only k-1 with 2 colors.
+        # Undirected graph has better visuals
+        G = self.G.to_undirected() if undirected else self.G
 
         # Post-bbd partition colors
         vertex_colors = [nc[self.partition.membership[v]] for v in G.nodes]
-        fig, ax = plt.subplots(figsize=[16, 12])
-        pos = nx.kamada_kawai_layout(self.post_switching_graph, weight=None)
+        _, ax = plt.subplots(figsize=[16, 12])
+        pos = nx.kamada_kawai_layout(
+            (self.post_switching_graph if post else G), weight=None
+        )
 
         # Draw buses
         factor = min(1, max(0.3, 200 / len(G)))
-        buses = nx.draw_networkx_nodes(
+        nx.draw_networkx_nodes(
             G,
             pos,
             node_size=250 * factor,
             node_color=vertex_colors,
             linewidths=2,
         )
-        # nx.draw_networkx_labels(
-        #     G,
-        #     pos,
-        #     {i: str(i) for i in G.nodes if i not in self.generators.keys()},
-        #     font_size=9,
-        # )
+
+        # Draw generator labels
         nx.draw_networkx_labels(
             G,
             pos,
             {node: "G" for group in self.generators.values() for node in group},
-            # {i: "G" for i in self.generators.keys()},
             font_size=9,
         )
 
         # Draw regular lines
-        lines = nx.draw_networkx_edges(
+        nx.draw_networkx_edges(
             G,
             pos,
             # edgelist=[e for e in G.edges if e not in ],
-            edgelist=[e for e in G.edges if e not in self.switched_lines],
+            edgelist=[e for e in self.G.edges if e not in self.switched_lines],
             width=2.5,
             edge_color="#595959",
         )
 
         # Draw switched lines
-        switched_lines = nx.draw_networkx_edges(
+        nx.draw_networkx_edges(
             G,
             pos,
-            edgelist=[e for e in G.edges if e in self.switched_lines],
+            # NOTE We use self.G.edges here because they are directed, just like self.switched_lines
+            edgelist=[e for e in self.G.edges if e in self.switched_lines],
             width=2,
             alpha=0.8,
             edge_color="red",
