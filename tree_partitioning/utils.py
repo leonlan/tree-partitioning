@@ -26,11 +26,11 @@ def maximum_congestion(G):
     return max_congestion
 
 
-def remove_lines(G, lines):
+def remove_lines(G, lines, copy=True):
     """
     Remove the passed-in lines from G. Return all connected components.
     """
-    H = G.copy()
+    H = G.copy() if copy else G
     H.remove_edges_from(lines)
     return [H.subgraph(c).copy() for c in nx.weakly_connected_components(H)]
 
