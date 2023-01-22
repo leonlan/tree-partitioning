@@ -56,6 +56,7 @@ class Statistics:
         self.n_clusters = n_clusters
         self.n_buses = len(G.nodes())
         self.n_lines = len(G.edges())
+        self.initial_load = total_load(G)
         self._edge_weights = nx.get_edge_attributes(G, "f")
 
         # Cascading failure stats
@@ -100,6 +101,7 @@ class Statistics:
                             self.n_clusters,
                             self.n_buses,
                             self.n_lines,
+                            self.initial_load,
                             # CF stats
                             self.lines[idx],
                             self.total_lost_load[idx],
