@@ -1,4 +1,6 @@
 #!/bin/bash
+results_dir="$1"
+mkdir -p $results_dir
 
 for instance_size in 30 39 57 73 89 118 162 179 200 240 300 500 588 793 1354 1888 1951 2000 2736 2848
 do
@@ -8,9 +10,9 @@ do
     do
       for gci_weight in neg_weight weight b c
       do
-        scommand="sbatch jobscripts/cfs instances/*${instance_size}_* $n_clusters $method $gci_weight"
+        scommand="sbatch jobscripts/cfs instances/*${instance_size}_* $n_clusters $method $gci_weight $results_dir"
         echo "submit command: $scommand"
-        $scommand
+        # $scommand
       done
     done
   done
