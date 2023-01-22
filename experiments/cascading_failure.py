@@ -6,7 +6,6 @@ from pathlib import Path
 
 import _utils
 import networkx as nx
-import numpy as np
 import pyomo.environ as pyo
 from _single_stage import _single_stage
 from _single_stage_warm_start import _single_stage_warm_start
@@ -14,7 +13,6 @@ from _two_stage import _two_stage
 from numpy.testing import assert_almost_equal
 from tqdm.contrib.concurrent import process_map
 
-import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
 import tree_partitioning.utils as utils
 from tree_partitioning.classes import Case
@@ -59,6 +57,7 @@ class Statistics:
         self.lines: list[tuple] = []
         self.lines_flow: list[tuple] = []
         self.total_lost_load: list[float] = []
+        self.n_iterations: list[int] = []
         self.n_line_failures: list[int] = []
         self.n_gen_adjustments: list[int] = []
         self.n_alive_buses: list[int] = []
@@ -68,6 +67,7 @@ class Statistics:
         self,
         line,
         total_lost_load,
+        n_iterations,
         n_line_failures,
         n_gen_adjustments,
         n_alive_buses,
@@ -75,6 +75,7 @@ class Statistics:
     ):
         self.lines.append((line, round(self._edge_weights[line])))
         self.total_lost_load.append(total_lost_load)
+        self.n_iterations.append(n_iterations)
         self.n_line_failures.append(n_line_failures)
         self.n_gen_adjustments.append(n_gen_adjustments)
         self.n_alive_buses.append(n_alive_buses)
@@ -96,6 +97,7 @@ class Statistics:
                             # CF stats
                             self.lines[idx],
                             self.total_lost_load[idx],
+                            self.n_iterations[idx],
                             self.n_line_failures[idx],
                             self.n_gen_adjustments[idx],
                             self.n_alive_buses[idx],
@@ -110,22 +112,14 @@ def cascade_single_line_failure(G, line):
     """
     Initiate a cascading failure by removing the passed-in line from G.
     """
-    total_lost_load = 0
-    n_line_failures = 0
+    n_iterations = 1
 
     components = utils.remove_lines(G, [line], copy=True)
     overloaded = []
     final_components = []
 
     for comp in components:
-        # Register all positive power imbalances (lost load)
-        if power_imbalance := get_power_imbalance(comp) > 0:
-            total_lost_load += power_imbalance
-
-        # Adjust generation or shed load using proportional control
         proportional_control(comp)
-
-        # Recompute the power flows using DC power flow
         dcpf(comp)
 
         if utils.congested_lines(comp):
@@ -139,58 +133,65 @@ def cascade_single_line_failure(G, line):
         for component in overloaded:
             # Find the congested lines for each overloaded component
             lines = utils.congested_lines(component)
-            n_line_failures += len(lines)
 
             # Removing lines may create new components
             new_components = utils.remove_lines(component, lines, copy=False)
 
             for comp in new_components:
-                # Register all positive power imbalances (lost load)
-                if power_imbalance := get_power_imbalance(comp) > 0:
-                    total_lost_load += power_imbalance
-
-                # Adjust generation or shed load using proportional control
+                # Adjust generation or shed load using proportional control and re-run DCPF
                 proportional_control(comp)
-
-                # Recompute the power flows using DC power flow
                 dcpf(comp)
 
-                if utils.congested_lines(comp):
-                    overloaded.append(comp)
+                if utils.congested_lines(comp):  # proxy for determining if overloaded
+                    new_overloaded.append(comp)
                 else:
                     final_components.append(comp)
 
-            # Find the new overloaded components
-            final_components += [
-                comp for comp in new_components if not utils.congested_lines(comp)
-            ]
-            new_overloaded += [
-                comp for comp in new_components if utils.congested_lines(comp)
-            ]
-
-        # Continue cascade on the new components that are overloaded
+        # Continue cascade on the new overloaded components
         overloaded = new_overloaded
-
-    # Sanity checks
-    assert sum(len(comp.nodes) for comp in final_components) == len(G.nodes)
-    assert total_lost_load <= total_generation(G)
+        n_iterations += 1
 
     # Collect post-cascading failure statistics
-    total_lost_load = ...  # TODO do it here instead of in the failure
+    n_line_failures = len(G.edges) - sum(len(comp.edges) for comp in final_components)
+    total_lost_load = total_load(G) - sum(total_load(comp) for comp in final_components)
     n_gen_adjustments = adjusted_gens(G, final_components)
     n_alive_buses = len(G.nodes) - sum(
         [len(g.nodes) for g in final_components if total_generation(g) < _EPS]
     )
     n_final_components = len(final_components)
 
+    # Sanity checks
+    assert sum(len(comp.nodes) for comp in final_components) == len(G.nodes)
+    assert total_lost_load <= total_generation(G)
+
     return {
         "line": line,
         "total_lost_load": total_lost_load,
+        "n_iterations": n_iterations,
         "n_line_failures": n_line_failures,
         "n_gen_adjustments": n_gen_adjustments,
         "n_alive_buses": n_alive_buses,
         "n_final_components": n_final_components,
     }
+
+
+def cascading_failure(stats, G):
+    """
+    Runs a cascading failure simulation on the network G in parallel.
+    """
+    tqdm_kwargs = dict(max_workers=4, unit="instance")
+    func = partial(cascade_single_line_failure, G)
+    func_args = [line for line in G.edges]
+
+    data = process_map(func, func_args, **tqdm_kwargs)
+
+    for res in data:
+        stats.collect(**res)
+
+    print(sum(stats.total_lost_load))
+
+    stats.to_csv("tmp/stats.csv")
+    return stats
 
 
 def proportional_control(G, in_place=True):
@@ -227,25 +228,6 @@ def proportional_control(G, in_place=True):
     # Power imbalance on the adjusted graph should be near-zero.
     assert_almost_equal(get_power_imbalance(H), 0)
     return H
-
-
-def cascading_failure(stats, G):
-    """
-    Runs a cascading failure simulation on the network G in parallel.
-    """
-    tqdm_kwargs = dict(max_workers=4, unit="instance")
-    func = partial(cascade_single_line_failure, G)
-    func_args = [line for line in G.edges]
-
-    data = process_map(func, func_args, **tqdm_kwargs)
-
-    for res in data:
-        stats.collect(**res)
-
-    print(sum(stats.total_lost_load))
-
-    stats.to_csv("tmp/stats.csv")
-    return stats
 
 
 def total_generation(G):
@@ -311,8 +293,8 @@ def main():
             _, lines, _ = _single_stage(
                 case,
                 generators,
-                tree_partitioning_alg=single_stage.power_flow_disruption,
-                # tree_partitioning_alg=single_stage.maximum_congestion,
+                # tree_partitioning_alg=single_stage.power_flow_disruption,
+                tree_partitioning_alg=single_stage.maximum_congestion,
                 solver=pyo.SolverFactory("gurobi", solver_io="python"),
                 options={"TimeLimit": 60},
             )
