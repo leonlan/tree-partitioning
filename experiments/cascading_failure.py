@@ -13,6 +13,8 @@ from _two_stage import _two_stage
 from numpy.testing import assert_almost_equal
 from tqdm.contrib.concurrent import process_map
 
+import tree_partitioning.milp.line_switching.maximum_congestion as milp_line_switching
+import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
 import tree_partitioning.utils as utils
 from tree_partitioning.classes import Case
@@ -29,11 +31,13 @@ from tree_partitioning.milp.line_switching import (
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
-    parser.add_argument("--max_clusters", type=int, default=4)
-    parser.add_argument("--min_size", type=int, default=200)
-    parser.add_argument("--max_size", type=int, default=200)
+    parser.add_argument("--n_clusters", type=int, default=4)
+    parser.add_argument(
+        "--method", type=str, default="single_stage_power_flow_disruption"
+    )
     parser.add_argument("--gci_weight", type=str, default="neg_weight")
     parser.add_argument("--results_dir", type=str, default="results/cfs/")
+    parser.add_argument("--num_procs", type=int, default=8)
 
     return parser.parse_args()
 
@@ -43,14 +47,15 @@ class Statistics:
     Store simulation statistics for cascading failures.
     """
 
-    def __init__(self, case, G, name, n_clusters):
+    def __init__(self, G, name, method, gci_weight, n_clusters):
         # General stats
-        self.case = case
         self.G = G
         self.name = name
+        self.method = method
+        self.gci_weight = gci_weight
+        self.n_clusters = n_clusters
         self.n_buses = len(G.nodes())
         self.n_lines = len(G.edges())
-        self.n_clusters = n_clusters
         self._edge_weights = nx.get_edge_attributes(G, "f")
 
         # Cascading failure stats
@@ -82,18 +87,19 @@ class Statistics:
         self.n_final_components.append(n_final_components)
 
     def to_csv(self, path):
-        with open(path, "a") as fi:
+        with open(path, "w") as fi:
             for idx in range(len(self.total_lost_load)):
                 fi.write(
                     "; ".join(
                         str(val)
                         for val in [
                             # Instance description
-                            self.case.name,
                             self.name,
+                            self.method,
+                            self.gci_weight,
+                            self.n_clusters,
                             self.n_buses,
                             self.n_lines,
-                            self.n_clusters,
                             # CF stats
                             self.lines[idx],
                             self.total_lost_load[idx],
@@ -175,11 +181,11 @@ def cascade_single_line_failure(G, line):
     }
 
 
-def cascading_failure(stats, G):
+def cascading_failure(stats, G, max_workers=8):
     """
     Runs a cascading failure simulation on the network G in parallel.
     """
-    tqdm_kwargs = dict(max_workers=4, unit="instance")
+    tqdm_kwargs = dict(max_workers=max_workers, unit="instance")
     func = partial(cascade_single_line_failure, G)
     func_args = [line for line in G.edges]
 
@@ -188,9 +194,6 @@ def cascading_failure(stats, G):
     for res in data:
         stats.collect(**res)
 
-    print(sum(stats.total_lost_load))
-
-    stats.to_csv("tmp/stats.csv")
     return stats
 
 
@@ -240,7 +243,7 @@ def total_load(G):
 
 def get_power_imbalance(G):
     """
-    Return the power imbalance. Positive power imbalance indicates means that
+    Return the power imbalance. Positive power imbalance means that
     there is more load than generation.
     """
     return total_load(G) - total_generation(G)
@@ -271,56 +274,67 @@ def main():
     args = parse_args()
     instances = sorted(glob(args.instance_pattern), key=_utils.name2size)
 
-    for path in instances:
-        n = utils.name2size(path)
+    res_dir = Path(args.results_dir)
+    res_dir.mkdir(exist_ok=True, parents=True)
 
-        if n < args.min_size or n > args.max_size:
+    for path in instances:
+        case = Case.from_file(path)
+
+        if args.method == "original":
+            stats = Statistics(case.G, case.name, args.method, args.gci_weight, 1)
+            cascading_failure(stats, case.G, args.num_procs)
+
+            path = res_dir / f"{case.name}-{args.method}-{args.gci_weight}-k1.csv"
+            stats.to_csv(path)
             continue
 
-        case = Case.from_file(path)
-        Path(args.results_dir).mkdir(exist_ok=True, parents=True)
+        # Tree partitioning methods
+        k = args.n_clusters
+        generators = mst_gci(case, k, weight=args.gci_weight)
 
-        # Original network
-        OG = dcopf_pp(case.G, case.net.deepcopy(), [])
-        name = f"{case.name}-original-{args.gci_weight}"
-        stats = Statistics(case, OG, name, 1)
-        cascading_failure(stats, OG)
+        solver = pyo.SolverFactory("gurobi", solver_io="python")
+        options = {"TimeLimit": 300}
 
-        for k in range(2, args.max_clusters + 1):
-            generators = mst_gci(case, k, weight=args.gci_weight)
+        try:
+            if args.method == "single_stage_power_flow_disruption":
+                _, lines, _ = _single_stage(
+                    case,
+                    generators,
+                    tree_partitioning_alg=single_stage.power_flow_disruption,
+                    solver=solver,
+                    options=options,
+                )
+            elif args.method == "single_stage_maximum_congestion":
+                _, lines, _ = _single_stage(
+                    case,
+                    generators,
+                    tree_partitioning_alg=single_stage.maximum_congestion,
+                    solver=solver,
+                    options=options,
+                )
+            elif args.method == "two_stage_maximum_congestion":
+                _, lines, _ = _two_stage(
+                    case,
+                    generators,
+                    partitioning_model=partitioning.power_flow_disruption,
+                    line_switching_model=milp_line_switching,
+                    solver=solver,
+                    options=options,
+                )
 
-            name = f"{case.name}-ws{k}-{args.gci_weight}"
-            _, lines, _ = _single_stage(
-                case,
-                generators,
-                # tree_partitioning_alg=single_stage.power_flow_disruption,
-                tree_partitioning_alg=single_stage.maximum_congestion,
-                solver=pyo.SolverFactory("gurobi", solver_io="python"),
-                options={"TimeLimit": 60},
-            )
-
+            # Take the resulting line switching actions and create a new
+            # network. Run DCOPF using pandapower afterwards.
             post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
 
-            # k-TP'd OPF network
-            stats = Statistics(case, post_G_dcopf, name, k)
-            print("Start: ", name)
-            cascading_failure(stats, post_G_dcopf)
+            stats = Statistics(post_G_dcopf, case.name, args.method, args.gci_weight, k)
+            cascading_failure(stats, post_G_dcopf, args.num_procs)
+
+            path = res_dir / f"{case.name}-{args.method}-{args.gci_weight}-k{k}.csv"
+            stats.to_csv(path)
+
+        except Exception as e:
+            print(e)
 
 
 if __name__ == "__main__":
     main()
-
-
-"""
-test
-1942.8856400000002
-single-stage 2 0.9355508302215462
-Start:  pglib_opf_case30_ieee-ws2-neg_weight
-1527.1155400000002
-single-stage 3 0.8694714821451809
-Start:  pglib_opf_case30_ieee-ws3-neg_weight
-1271.1470400000003
-single-stage 4 0.8694708230459777
-Start:  pglib_opf_case30_ieee-ws4-neg_weight
-1271.1470400000003
-"""

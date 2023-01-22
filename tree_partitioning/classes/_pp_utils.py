@@ -1,3 +1,8 @@
+import warnings
+
+# NOTE `pc.from_mpc` uses a method that is deprecated.
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 import numpy as np
 import pandapower as pp
 import pandapower.converter as pc
@@ -104,7 +109,7 @@ def _netdict_from_pp_net(net, merge_lines):
     df_bus = df_bus.fillna(0)  # unfilled entries
 
     # TODO see issue https://github.com/leonlan/tree-partitioning/issues/4
-    df_bus = df_bus.round(5)
+    df_bus = df_bus.round(8)
 
     # The total generation and load is useful for cascading failures, where we
     # need fine grained control over the generation and/or load to do load shedding
@@ -147,7 +152,7 @@ def _netdict_from_pp_net(net, merge_lines):
 
     lines = {
         (data["from_bus"], data["to_bus"], i): data
-        for i, (line, data) in enumerate(dfnetwork.T.to_dict().items())
+        for i, (_, data) in enumerate(dfnetwork.T.to_dict().items())
     }
     netdict = {"buses": df_bus.T.to_dict(), "lines": lines}
 
