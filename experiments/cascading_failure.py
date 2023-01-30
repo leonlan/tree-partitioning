@@ -38,6 +38,7 @@ def parse_args():
     parser.add_argument("--gci_weight", type=str, default="neg_weight")
     parser.add_argument("--results_dir", type=str, default="results/cfs/")
     parser.add_argument("--num_procs", type=int, default=8)
+    parser.add_argument("--milp_time_limit", type=int, default=300)
 
     return parser.parse_args()
 
@@ -295,7 +296,7 @@ def main():
         generators = mst_gci(case, k, weight=args.gci_weight)
 
         solver = pyo.SolverFactory("gurobi", solver_io="python")
-        options = {"TimeLimit": 300}
+        options = {"TimeLimit": args.milp_time_limit}
 
         try:
             if args.method == "single_stage_power_flow_disruption":
@@ -316,6 +317,15 @@ def main():
                 )
             elif args.method == "two_stage_maximum_congestion":
                 _, lines, _ = _two_stage(
+                    case,
+                    generators,
+                    partitioning_model=partitioning.power_flow_disruption,
+                    line_switching_model=milp_line_switching,
+                    solver=solver,
+                    options=options,
+                )
+            elif args.method == "warm_start_maximum_congestion":
+                _, lines, _ = _single_stage_warm_start(
                     case,
                     generators,
                     partitioning_model=partitioning.power_flow_disruption,
