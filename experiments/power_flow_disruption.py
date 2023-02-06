@@ -6,12 +6,10 @@ from pathlib import Path
 
 import _utils
 import pyomo.environ as pyo
-from _recursive import _recursive
 from _single_stage import _single_stage
 from _two_stage import _two_stage
 from Result import make_result
 
-import tree_partitioning.line_switching.brute_force as brute_force
 import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
 from tree_partitioning.classes import Case, Solution

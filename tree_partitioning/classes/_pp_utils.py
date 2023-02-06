@@ -9,6 +9,8 @@ import pandapower.converter as pc
 import pandas as pd
 from numpy.testing import assert_almost_equal
 
+DECIMALS = 8
+
 
 def _load_pp_case(path: str, opf_init: bool, ac: bool):
     """
@@ -108,8 +110,7 @@ def _netdict_from_pp_net(net, merge_lines):
 
     df_bus = df_bus.fillna(0)  # unfilled entries
 
-    # TODO see issue https://github.com/leonlan/tree-partitioning/issues/4
-    df_bus = df_bus.round(8)
+    df_bus = df_bus.round(DECIMALS)
 
     # The total generation and load is useful for cascading failures, where we
     # need fine grained control over the generation and/or load to do load shedding
@@ -122,7 +123,8 @@ def _netdict_from_pp_net(net, merge_lines):
 
     # Check that p_mw is the same as the total load minus total generation
     assert_almost_equal(
-        df_bus["p_mw"].values, (df_bus["p_load_total"] - df_bus["p_gen_total"]).values
+        df_bus["p_mw"].values,
+        (df_bus["p_load_total"] - df_bus["p_gen_total"]).values,
     )
 
     # Consider merging lines
