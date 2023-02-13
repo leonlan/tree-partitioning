@@ -86,6 +86,13 @@ def main():
                         runtime=runtime,
                         algorithm="1ST",
                     ).to_csv(path)
+                    sol = Solution(case, generator_groups, partition, lines)
+                    sol.plot(
+                        f"tmp/figs/{Path(path).stem}1st.png",
+                        post=False,
+                        undirected=True,
+                    )
+
                 except Exception as e:
                     print(path, e)
 
