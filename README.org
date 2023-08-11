@@ -1,28 +1,7 @@
 #+TITLE: Tree partitioning
 The library contains implementations of /tree partitioning/ algorithms for power system networks, turning the network into clusters that are connected in a tree-like manner.
 
-#+html: <p align="center"><img width=600 height=450 src="ieee118.jpg"/></p>
+#+html: <p align="center"><img width=600 height=450 src="IEEE-73.jpg"/></p>
 
 This repository contains implementations of tree partitioning algorithms presented in the following works:
-- L. Lan and A. Zocca, "Localizing line failures in power networks: a tree partitioning approach," Work in progress.
-- L. Lan and A. Zocca, “Refining bridge-block decompositions through two-stage and recursive tree partitioning,” arXiv:2110.06998 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.06998
-- L. Lan and A. Zocca, “An MILP-based approach to tree partitioning with minimal power flow disruption and generator coherency constraints,” arXiv:2110.07000 [cs, eess, math], Oct. 2021. https://arxiv.org/abs/2110.07000
-
-* Run stuff
-#+begin_src
- poetry run python experiments/power_flow_disruption.py --max_size 30 --min_size 30 --max_clusters 3 --results_dir tmp/
-#+end_src
-
-* Logbook
-- <2022-04-20 Wed> Ran all tests up to 588 today.
-
-* LISA
-#+begin_src shell
-module load 2020
-module load Gurobi/9.1.1-foss-2020a-Python-3.8.2
-module load Python/3.8.2-GCCcore-9.3.0
-#+end_src
-
-#+begin_src
-poetry run python experiments/power_flow_disruption.py --n_clusters 3 --min_size 100 --max_size 300
-#+end_src
+- L. Lan and A. Zocca, "Mixed-integer linear programming formulations for tree partitioning of power networks," Work in progress.
