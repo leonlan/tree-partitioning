@@ -1,6 +1,9 @@
+import numpy as np
 import pyomo.environ as pyo
 
 from ._base_tree_partitioning import _base_tree_partitioning
+
+T_MAX = 360
 
 
 def maximum_congestion(G, generators, **kwargs):
@@ -11,12 +14,13 @@ def maximum_congestion(G, generators, **kwargs):
 
     m.gamma = pyo.Var(domain=pyo.NonNegativeReals)
     m.flow = pyo.Var(m.lines, domain=pyo.Reals)
-    m.theta = pyo.Var(m.buses, domain=pyo.Reals)
+    m.theta = pyo.Var(m.buses, domain=pyo.Reals, bounds=[-T_MAX, T_MAX])
 
-    # TODO why does big M need to this big?
     m.M = pyo.Param(
         m.lines,
-        initialize={line: data["c"] * 20 for line, data in m.line_data.items()},
+        initialize={
+            line: abs(2 * T_MAX * data["b"]) for line, data in m.line_data.items()
+        },
         within=pyo.Reals,
     )
 

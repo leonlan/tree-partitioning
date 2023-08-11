@@ -43,12 +43,12 @@ def _base_line_switching(G, partition: Partition, objective="congestion", **kwar
 
     @m.Constraint(m.cross)
     def commodity_flow_upper_bound(m, *ce):
-        _, line = ce[:2], ce[2:]  # NOTE this is needed to make line tuple
+        line = ce[2:]
         return m.com_flow[ce] <= (len(m.clusters) - 1) * m.active_line[line]
 
     @m.Constraint(m.cross)
     def commodity_flow_lower_bound(m, *ce):
-        _, line = ce[:2], ce[2:]
+        line = ce[2:]
         return -(len(m.clusters) - 1) * m.active_line[line] <= m.com_flow[ce]
 
     @m.Constraint(m.clusters)

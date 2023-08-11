@@ -1,8 +1,15 @@
+import warnings
+
+# NOTE `pc.from_mpc` uses a method that is deprecated.
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 import numpy as np
 import pandapower as pp
 import pandapower.converter as pc
 import pandas as pd
 from numpy.testing import assert_almost_equal
+
+DECIMALS = 16
 
 
 def _load_pp_case(path: str, opf_init: bool, ac: bool):
@@ -103,8 +110,7 @@ def _netdict_from_pp_net(net, merge_lines):
 
     df_bus = df_bus.fillna(0)  # unfilled entries
 
-    # TODO see issue https://github.com/leonlan/tree-partitioning/issues/4
-    df_bus = df_bus.round(5)
+    df_bus = df_bus.round(DECIMALS)
 
     # The total generation and load is useful for cascading failures, where we
     # need fine grained control over the generation and/or load to do load shedding
@@ -117,7 +123,8 @@ def _netdict_from_pp_net(net, merge_lines):
 
     # Check that p_mw is the same as the total load minus total generation
     assert_almost_equal(
-        df_bus["p_mw"].values, (df_bus["p_load_total"] - df_bus["p_gen_total"]).values
+        df_bus["p_mw"].values,
+        (df_bus["p_load_total"] - df_bus["p_gen_total"]).values,
     )
 
     # Consider merging lines
@@ -147,7 +154,7 @@ def _netdict_from_pp_net(net, merge_lines):
 
     lines = {
         (data["from_bus"], data["to_bus"], i): data
-        for i, (line, data) in enumerate(dfnetwork.T.to_dict().items())
+        for i, (_, data) in enumerate(dfnetwork.T.to_dict().items())
     }
     netdict = {"buses": df_bus.T.to_dict(), "lines": lines}
 
@@ -179,6 +186,7 @@ def _compute_susceptances(net, df):
         np.array(
             1
             / (
+                # NOTE Some cases have positive values for this
                 net.line["x_ohm_per_km"]
                 * net.line["length_km"]
                 * net.sn_mva

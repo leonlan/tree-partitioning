@@ -5,8 +5,9 @@ from glob import glob
 from pathlib import Path
 
 import _utils
+import networkx as nx
+import pandapower as pp
 import pyomo.environ as pyo
-from _recursive import _recursive
 from _single_stage import _single_stage
 from _single_stage_warm_start import _single_stage_warm_start
 from _two_stage import _two_stage
@@ -16,7 +17,8 @@ import tree_partitioning.line_switching.brute_force as brute_force
 import tree_partitioning.milp.line_switching.maximum_congestion as milp_line_switching
 import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
-from tree_partitioning.classes import Case
+from tree_partitioning.classes import Case, Solution
+from tree_partitioning.dcpf import dcpf
 from tree_partitioning.gci import mst_gci
 
 
@@ -84,6 +86,13 @@ def main():
                         runtime=runtime,
                         algorithm="1ST",
                     ).to_csv(path)
+                    sol = Solution(case, generator_groups, partition, lines)
+                    sol.plot(
+                        f"tmp/figs/{Path(path).stem}1st.png",
+                        post=False,
+                        undirected=True,
+                    )
+
                 except Exception as e:
                     print(path, e)
 
@@ -106,7 +115,13 @@ def main():
                         algorithm="2ST",
                     ).to_csv(path)
 
-                except:
+                    sol = Solution(case, generator_groups, partition, lines)
+                    sol.plot(
+                        f"tmp/figs/{Path(path).stem}.png", post=False, undirected=True
+                    )
+
+                except Exception as e:
+                    print(e)
                     print(path, "failed")
 
             if "warm_start" in args.algorithm:
@@ -126,6 +141,13 @@ def main():
                         runtime=runtime,
                         algorithm="ws",
                     ).to_csv(path)
+
+                    sol = Solution(case, generator_groups, partition, lines)
+                    sol.plot(
+                        f"tmp/figs/{Path(path).stem}1st.png",
+                        post=False,
+                        undirected=True,
+                    )
 
                 except:
                     print(path, "failed")

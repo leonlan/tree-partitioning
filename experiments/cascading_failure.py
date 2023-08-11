@@ -1,16 +1,19 @@
 import argparse
 from collections import defaultdict
+from functools import partial
 from glob import glob
 from pathlib import Path
 
 import _utils
 import networkx as nx
-import numpy as np
 import pyomo.environ as pyo
 from _single_stage import _single_stage
 from _single_stage_warm_start import _single_stage_warm_start
 from _two_stage import _two_stage
+from numpy.testing import assert_almost_equal
+from tqdm.contrib.concurrent import process_map
 
+import tree_partitioning.milp.line_switching.maximum_congestion as milp_line_switching
 import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
 import tree_partitioning.utils as utils
@@ -28,11 +31,14 @@ from tree_partitioning.milp.line_switching import (
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
-    parser.add_argument("--max_clusters", type=int, default=4)
-    parser.add_argument("--min_size", type=int, default=30)
-    parser.add_argument("--max_size", type=int, default=30)
+    parser.add_argument("--n_clusters", type=int, default=4)
+    parser.add_argument(
+        "--method", type=str, default="single_stage_power_flow_disruption"
+    )
     parser.add_argument("--gci_weight", type=str, default="neg_weight")
     parser.add_argument("--results_dir", type=str, default="results/cfs/")
+    parser.add_argument("--num_procs", type=int, default=8)
+    parser.add_argument("--milp_time_limit", type=int, default=300)
 
     return parser.parse_args()
 
@@ -42,20 +48,23 @@ class Statistics:
     Store simulation statistics for cascading failures.
     """
 
-    def __init__(self, case, G, name, n_clusters):
+    def __init__(self, G, name, method, gci_weight, n_clusters):
         # General stats
-        self.case = case
         self.G = G
         self.name = name
+        self.method = method
+        self.gci_weight = gci_weight
+        self.n_clusters = n_clusters
         self.n_buses = len(G.nodes())
         self.n_lines = len(G.edges())
-        self.n_clusters = n_clusters
+        self.initial_load = total_load(G)
         self._edge_weights = nx.get_edge_attributes(G, "f")
 
         # Cascading failure stats
         self.lines: list[tuple] = []
         self.lines_flow: list[tuple] = []
-        self.lost_load: list[float] = []
+        self.total_lost_load: list[float] = []
+        self.n_iterations: list[int] = []
         self.n_line_failures: list[int] = []
         self.n_gen_adjustments: list[int] = []
         self.n_alive_buses: list[int] = []
@@ -64,14 +73,16 @@ class Statistics:
     def collect(
         self,
         line,
-        lost_load,
+        total_lost_load,
+        n_iterations,
         n_line_failures,
         n_gen_adjustments,
         n_alive_buses,
         n_final_components,
     ):
         self.lines.append((line, round(self._edge_weights[line])))
-        self.lost_load.append(lost_load)
+        self.total_lost_load.append(total_lost_load)
+        self.n_iterations.append(n_iterations)
         self.n_line_failures.append(n_line_failures)
         self.n_gen_adjustments.append(n_gen_adjustments)
         self.n_alive_buses.append(n_alive_buses)
@@ -79,20 +90,23 @@ class Statistics:
 
     def to_csv(self, path):
         with open(path, "w") as fi:
-            for idx in range(len(self.lost_load)):
+            for idx in range(len(self.total_lost_load)):
                 fi.write(
                     "; ".join(
                         str(val)
                         for val in [
                             # Instance description
-                            self.case.name,
                             self.name,
+                            self.method,
+                            self.gci_weight,
+                            self.n_clusters,
                             self.n_buses,
                             self.n_lines,
-                            self.n_clusters,
+                            self.initial_load,
                             # CF stats
                             self.lines[idx],
-                            self.lost_load[idx],
+                            self.total_lost_load[idx],
+                            self.n_iterations[idx],
                             self.n_line_failures[idx],
                             self.n_gen_adjustments[idx],
                             self.n_alive_buses[idx],
@@ -103,78 +117,139 @@ class Statistics:
                 fi.write("\n")
 
 
-def cascading_failure(stats, G, export_path="tmp-cf.txt"):
-    # Initiate a cascade for each possible line failure
-    for line in G.edges:
-        total_lost_load = 0
-        n_line_failures = 0
-        final_components = []
+def cascade_single_line_failure(G, line):
+    """
+    Initiate a cascading failure by removing the passed-in line from G.
+    """
+    n_iterations = 1
 
-        components = utils.remove_lines(G, [line])
-        overloaded = []
+    components = utils.remove_lines(G, [line], copy=True)
+    overloaded = []
+    final_components = []
 
-        for component in components:
-            comp, lost_load = dcpf(component)
-            total_lost_load += lost_load
+    for comp in components:
+        proportional_control(comp)
+        dcpf(comp)
 
-            if utils.congested_lines(comp):
-                overloaded.append(comp)
-            else:
-                final_components.append(comp)
+        if utils.congested_lines(comp):
+            overloaded.append(comp)
+        else:
+            final_components.append(comp)
 
-        while overloaded:
-            new_components = []
+    while overloaded:
+        new_overloaded = []
 
-            for component in overloaded:
-                # Find the congested lines for each overloaded component
-                lines = utils.congested_lines(component)
-                n_line_failures += len(lines)
+        for component in overloaded:
+            # Find the congested lines for each overloaded component
+            lines = utils.congested_lines(component)
 
-                # Removing lines may create new components
-                new_comps = utils.remove_lines(component, lines)
-
-                # For every component, re-run DCPF and record lost load
-                for comp in new_comps:
-                    comp, lost_load = dcpf(comp)
-                    total_lost_load += lost_load
-                    new_components.append(comp)
-
-            overloaded = []
+            # Removing lines may create new components
+            new_components = utils.remove_lines(component, lines, copy=False)
 
             for comp in new_components:
-                if utils.congested_lines(comp):
-                    overloaded.append(comp)
+                # Adjust generation or shed load using proportional control and re-run DCPF
+                proportional_control(comp)
+                dcpf(comp)
+
+                if utils.congested_lines(comp):  # proxy for determining if overloaded
+                    new_overloaded.append(comp)
                 else:
                     final_components.append(comp)
 
-        # Collect post-cascading failure statistics
-        n_gen_adjustments = adjusted_gens(G, final_components)
-        n_alive_buses = len(G.nodes) - sum(
-            [len(g.nodes) for g in final_components if total_generation(g) < _EPS]
-        )
-        n_final_components = len(final_components)
+        # Continue cascade on the new overloaded components
+        overloaded = new_overloaded
+        n_iterations += 1
 
-        stats.collect(
-            line,
-            total_lost_load,
-            n_line_failures,
-            n_gen_adjustments=n_gen_adjustments,
-            n_alive_buses=n_alive_buses,
-            n_final_components=n_final_components,
-        )
+    # Collect post-cascading failure statistics
+    n_line_failures = len(G.edges) - sum(len(comp.edges) for comp in final_components)
+    total_lost_load = total_load(G) - sum(total_load(comp) for comp in final_components)
+    n_gen_adjustments = adjusted_gens(G, final_components)
+    n_alive_buses = len(G.nodes) - sum(
+        [len(g.nodes) for g in final_components if total_generation(g) < _EPS]
+    )
+    n_final_components = len(final_components)
 
-    print(export_path)
-    print(f"Lost load: {np.mean(stats.lost_load)}")
-    print("\n")
-    stats.to_csv(export_path)
+    # Sanity checks
+    assert sum(len(comp.nodes) for comp in final_components) == len(G.nodes)
+    assert total_lost_load <= total_generation(G)
+
+    return {
+        "line": line,
+        "total_lost_load": total_lost_load,
+        "n_iterations": n_iterations,
+        "n_line_failures": n_line_failures,
+        "n_gen_adjustments": n_gen_adjustments,
+        "n_alive_buses": n_alive_buses,
+        "n_final_components": n_final_components,
+    }
+
+
+def cascading_failure(stats, G, max_workers=8):
+    """
+    Runs a cascading failure simulation on the network G in parallel.
+    """
+    tqdm_kwargs = dict(max_workers=max_workers, unit="instance")
+    func = partial(cascade_single_line_failure, G)
+    func_args = [line for line in G.edges]
+
+    data = process_map(func, func_args, **tqdm_kwargs)
+
+    for res in data:
+        stats.collect(**res)
 
     return stats
 
 
+def proportional_control(G, in_place=True):
+    """
+    Readjusts generation or load to maintain power balance using a proportional
+    control scheme.
+
+    If there is a generation surplus, all generator outputs are lowered by the
+    same proportion to match the load. If there is a load surplus, then all
+    loads are adjusted (i.e., load shedding) to match the generation.
+
+    If in_place is set to True, then the power adjustments are made in place.
+    Otherwise, the graph G is copied.
+    """
+    H = G if in_place else G.copy()
+
+    # No adjustments needed if there is no generation and no load,
+    # or if there is no power imbalance.
+    power_imbalance = get_power_imbalance(H)
+    if max(total_generation(H), total_load(H)) == 0 or power_imbalance == 0:
+        return H
+
+    proportion = abs(power_imbalance) / max(total_generation(H), total_load(H))
+
+    if power_imbalance > 0:  # load surplus
+        old_load = nx.get_node_attributes(H, "p_load_total").items()
+        new_load = {bus: (1 - proportion) * load for bus, load in old_load}
+        nx.set_node_attributes(H, new_load, "p_load_total")
+    else:  # generation surplus
+        old_gen = nx.get_node_attributes(H, "p_gen_total").items()
+        new_gen = {bus: (1 - proportion) * gen for bus, gen in old_gen}
+        nx.set_node_attributes(H, new_gen, "p_gen_total")
+
+    # Power imbalance on the adjusted graph should be near-zero.
+    assert_almost_equal(get_power_imbalance(H), 0)
+    return H
+
+
 def total_generation(G):
-    return sum(
-        [-power for power in nx.get_node_attributes(G, "p_mw").values() if power < 0]
-    )
+    return sum(nx.get_node_attributes(G, "p_gen_total").values())
+
+
+def total_load(G):
+    return sum(nx.get_node_attributes(G, "p_load_total").values())
+
+
+def get_power_imbalance(G):
+    """
+    Return the power imbalance. Positive power imbalance means that
+    there is more load than generation.
+    """
+    return total_load(G) - total_generation(G)
 
 
 def adjusted_gens(G, final_components):
@@ -202,69 +277,75 @@ def main():
     args = parse_args()
     instances = sorted(glob(args.instance_pattern), key=_utils.name2size)
 
-    for path in instances:
-        n = utils.name2size(path)
+    res_dir = Path(args.results_dir)
+    res_dir.mkdir(exist_ok=True, parents=True)
 
-        if n < args.min_size or n > args.max_size:
+    for path in instances:
+        case = Case.from_file(path)
+
+        if args.method == "original":
+            stats = Statistics(case.G, case.name, args.method, args.gci_weight, 1)
+            cascading_failure(stats, case.G, args.num_procs)
+
+            path = res_dir / f"{case.name}-{args.method}-{args.gci_weight}-k1.csv"
+            stats.to_csv(path)
             continue
 
-        case = Case.from_file(path)
-        Path(args.results_dir).mkdir(exist_ok=True, parents=True)
+        # Tree partitioning methods
+        k = args.n_clusters
+        generators = mst_gci(case, k, weight=args.gci_weight)
 
-        # Original network
-        name = f"{case.name}-original-{args.gci_weight}"
-        stats = Statistics(case, case.G, name, 1)
-        cascading_failure(stats, case.G, f"{args.results_dir}{name}.txt")
         solver = pyo.SolverFactory("gurobi", solver_io="python")
-        options = {"TimeLimit": 60}
+        options = {"TimeLimit": args.milp_time_limit}
 
-        for k in range(2, args.max_clusters + 1):
-            generators = mst_gci(case, k, weight=args.gci_weight)
-
-            name = f"{case.name}-ws{k}-{args.gci_weight}"
-            try:
-                partition, lines, runtime = _single_stage(
+        try:
+            if args.method == "single_stage_power_flow_disruption":
+                _, lines, _ = _single_stage(
                     case,
                     generators,
                     tree_partitioning_alg=single_stage.power_flow_disruption,
                     solver=solver,
                     options=options,
                 )
-                # partition, lines, runtime = single_stage(
-                #     case,
-                #     generators,
-                #     line_switching_model=ls_maximum_congestion,
-                # )
+            elif args.method == "single_stage_maximum_congestion":
+                _, lines, _ = _single_stage(
+                    case,
+                    generators,
+                    tree_partitioning_alg=single_stage.maximum_congestion,
+                    solver=solver,
+                    options=options,
+                )
+            elif args.method == "two_stage_maximum_congestion":
+                _, lines, _ = _two_stage(
+                    case,
+                    generators,
+                    partitioning_model=partitioning.power_flow_disruption,
+                    line_switching_model=milp_line_switching,
+                    solver=solver,
+                    options=options,
+                )
+            elif args.method == "warm_start_maximum_congestion":
+                _, lines, _ = _single_stage_warm_start(
+                    case,
+                    generators,
+                    partitioning_model=partitioning.power_flow_disruption,
+                    line_switching_model=milp_line_switching,
+                    solver=solver,
+                    options=options,
+                )
 
-                post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
+            # Take the resulting line switching actions and create a new
+            # network. Run DCOPF using pandapower afterwards.
+            post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
 
-                # k-TP'd OPF network
-                stats = Statistics(case, post_G_dcopf, name, k)
-                print("Start: ", name)
-                cascading_failure(stats, post_G_dcopf, f"{args.results_dir}{name}.txt")
+            stats = Statistics(post_G_dcopf, case.name, args.method, args.gci_weight, k)
+            cascading_failure(stats, post_G_dcopf, args.num_procs)
 
-            except Exception as e:
-                # name = f"{case.name}-2st{k}-{args.gci_weight}"
-                # try:
-                #     partition, lines, runtime = _two_stage(
-                #         case,
-                #         generators,
-                #         partitioning_model=partitioning.power_flow_disruption,
-                #         line_switching_model=ls_maximum_congestion,
-                #         solver=solver,
-                #         options=options,
-                #     )
-                #     post_G_dcopf = dcopf_pp(case.G, case.net.deepcopy(), lines)
-                #     # k-TP'd OPF network
-                #     stats = Statistics(case, post_G_dcopf, name, k)
-                #     cascading_failure(
-                #         stats, post_G_dcopf, f"{args.results_dir}{name}.txt"
-                #     )
-                #     print(name, "failed")
+            path = res_dir / f"{case.name}-{args.method}-{args.gci_weight}-k{k}.csv"
+            stats.to_csv(path)
 
-                # except:
-                print(e)
-                print(name, "failed")
+        except Exception as e:
+            print(e)
 
 
 if __name__ == "__main__":

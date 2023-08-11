@@ -2,17 +2,18 @@
 #SBATCH --partition=normal
 #SBATCH --constraint=gold_6130
 #SBATCH --nodes 1
-#SBATCH -t 18:00:00
+#SBATCH -t 3:00:00
+#SBATCH --ntasks=1
+#SBATCH --mem-per-cpu=2G
 #SBATCH --mail-user=l.lan@vu.nl
 #SBATCH --mail-type=FAIL,END
-LANG=en_US.UTF-8
+#SBATCH --out=slurm/%A_%a.out
 
+LANG=en_US.UTF-8
 module load 2020
 module load Gurobi/9.1.1-foss-2020a-Python-3.8.2
 
 module load 2021
 module load Python/3.9.5-GCCcore-10.3.0
 
-echo start of job
-poetry run python experiments/cascading_failure.py --min_size $3 --max_size $4 --max_clusters 5 --gci_weight $1 --results_dir $2
-echo end of job
+poetry run python experiments/cascading_failure.py --instance_pattern $1 --n_clusters $2 --method $3 --gci_weight $4 --results_dir $5 --num_procs $(nproc)
