@@ -24,26 +24,30 @@ def _single_stage_warm_start(case, generators, **kwargs):
     G = case.G
     start = time.perf_counter()
 
-    # # Solve the two stage models
-    # part_model = partitioning.power_flow_disruption(G, generators, **kwargs)
-    # solver.solve(part_model, tee=False, options=options)
-
-    # partition = model_utils.get_partition(part_model)
-    # ls_model = milp_line_switching(G, partition, **kwargs)
-    # solver.solve(ls_model, tee=False, options=options)
-    # _, lines = ls_model.objective(), model_utils.get_inactive_lines(ls_model)
-
-    # _sanity_check(G, generators, partition, lines)
-
-    # Double time limit back to original for single stage
-    kwargs["options"].update({"TimeLimit": kwargs["options"]["TimeLimit"] * 2})
-
-    # Warm start the single stage model
-    pfd_model = single_stage.power_flow_disruption(G, generators, **kwargs)
-    solver.solve(pfd_model, tee=True, options=options)
-
     model = single_stage.maximum_congestion(G, generators, **kwargs)
-    _warm_start_pfd(model, pfd_model)
+
+    # Warm start with PFD
+    # # Double time limit back to original for single stage
+    # kwargs["options"].update({"TimeLimit": kwargs["options"]["TimeLimit"] * 2})
+
+    # # Warm start the single stage model
+    # pfd_model = single_stage.power_flow_disruption(G, generators, **kwargs)
+    # solver.solve(pfd_model, tee=True, options=options)
+    # _warm_start_pfd(model, pfd_model)
+
+    # Warmstart with two-stage MC
+    # Solve the two stage models
+    part_model = partitioning.power_flow_disruption(G, generators, **kwargs)
+    solver.solve(part_model, tee=False, options=options)
+
+    partition = model_utils.get_partition(part_model)
+    ls_model = milp_line_switching(G, partition, **kwargs)
+    solver.solve(ls_model, tee=False, options=options)
+    _, lines = ls_model.objective(), model_utils.get_inactive_lines(ls_model)
+    _warm_start(model, part_model, ls_model)
+
+    _sanity_check(G, generators, partition, lines)
+
     solver.solve(model, tee=True, warmstart=True, options=options)
 
     partition = model_utils.get_partition(model)

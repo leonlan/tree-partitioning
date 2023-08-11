@@ -3,7 +3,7 @@ import pyomo.environ as pyo
 
 from ._base_tree_partitioning import _base_tree_partitioning
 
-T_MAX = 180
+T_MAX = 360
 
 
 def maximum_congestion(G, generators, **kwargs):

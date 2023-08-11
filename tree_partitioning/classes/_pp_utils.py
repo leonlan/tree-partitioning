@@ -9,7 +9,7 @@ import pandapower.converter as pc
 import pandas as pd
 from numpy.testing import assert_almost_equal
 
-DECIMALS = 8
+DECIMALS = 16
 
 
 def _load_pp_case(path: str, opf_init: bool, ac: bool):
@@ -186,6 +186,7 @@ def _compute_susceptances(net, df):
         np.array(
             1
             / (
+                # NOTE Some cases have positive values for this
                 net.line["x_ohm_per_km"]
                 * net.line["length_km"]
                 * net.sn_mva
