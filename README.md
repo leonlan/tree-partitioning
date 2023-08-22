@@ -21,7 +21,7 @@ Running the code also requires a [Gurobi](https://www.gurobi.com/) license.
 
 ## Paper
 
-For more details about tree partitioning, see our paper "[*Mixed-integer linear programming approaches for tree partitioning of power networks*](https://arxiv.org/abs/2110.07000)." If this code is useful for your work, please consider citing our work:
+For more details about tree partitioning, see our paper [*Mixed-integer linear programming approaches for tree partitioning of power networks*](https://arxiv.org/abs/2110.07000). If this code is useful for your work, please consider citing our work:
 
 ``` bibtex
 @misc{Lan2023a,
