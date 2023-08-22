@@ -37,4 +37,3 @@ For more details about tree partitioning, see our paper "[*Mixed-integer linear 
 }
 ```
 
-`
