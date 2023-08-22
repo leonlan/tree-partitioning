@@ -1,7 +1,0 @@
-#+TITLE: Tree partitioning
-The library contains implementations of /tree partitioning/ algorithms for power system networks, turning the network into clusters that are connected in a tree-like manner.
-
-#+html: <p align="center"><img width=600 height=450 src="IEEE-73.jpg"/></p>
-
-This repository contains implementations of tree partitioning algorithms presented in the following works:
-- L. Lan and A. Zocca, "Mixed-integer linear programming formulations for tree partitioning of power networks," Work in progress.
