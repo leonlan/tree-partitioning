@@ -1,7 +1,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 # Tree partitioning
-The repository contain implementations of /tree partitioning/ algorithms for power transmission networks, turning the network into clusters that are connected in a tree-like manner.
+The repository contain implementations of *tree partitioning* algorithms for power transmission networks, turning the network into clusters that are connected in a tree-like manner.
 
 See [our paper](#paper) for more information about tree partitioning and the implemented algorithms.
 
@@ -19,12 +19,14 @@ If you don't have Poetry installed, make sure that you have Python 3.9 or higher
 
 Running the code also requires a [Gurobi](https://www.gurobi.com/) license. 
 
+See the `experiments/` folder for the experiments that were ran for the paper.
+
 ## Paper
 
 For more details about tree partitioning, see our paper [*Mixed-integer linear programming approaches for tree partitioning of power networks*](https://arxiv.org/abs/2110.07000). If this code is useful for your work, please consider citing our work:
 
 ``` bibtex
-@misc{Lan2023a,
+@misc{Lan_Zocca_2023,
   title = {Mixed-integer linear programming approaches for tree partitioning of power networks},
   author = {Lan, Leon and Zocca, Alessandro},
   year = {2023},
