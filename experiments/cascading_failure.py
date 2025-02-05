@@ -1,4 +1,5 @@
 import argparse
+import numpy as np
 from collections import defaultdict
 from functools import partial
 from glob import glob
@@ -14,6 +15,7 @@ from numpy.testing import assert_almost_equal
 from tqdm.contrib.concurrent import process_map
 
 import tree_partitioning.milp.line_switching.maximum_congestion as milp_line_switching
+from tree_partitioning.line_switching.maximum_spanning_tree import maximum_spanning_tree
 import tree_partitioning.milp.partitioning as partitioning
 import tree_partitioning.milp.tree_partitioning as single_stage
 import tree_partitioning.utils as utils
@@ -30,13 +32,13 @@ from tree_partitioning.milp.line_switching import (
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--instance_pattern", default="instances/pglib_opf_*.mat")
+    parser.add_argument("--instance_pattern", default="instances-rev/pglib_opf_*.mat")
     parser.add_argument("--n_clusters", type=int, default=4)
     parser.add_argument(
         "--method", type=str, default="single_stage_power_flow_disruption"
     )
     parser.add_argument("--gci_weight", type=str, default="neg_weight")
-    parser.add_argument("--results_dir", type=str, default="results/cfs/")
+    parser.add_argument("--results_dir", type=str, default="results-rev")
     parser.add_argument("--num_procs", type=int, default=8)
     parser.add_argument("--milp_time_limit", type=int, default=300)
 
@@ -192,10 +194,18 @@ def cascading_failure(stats, G, max_workers=8):
     func = partial(cascade_single_line_failure, G)
     func_args = [line for line in G.edges]
 
-    data = process_map(func, func_args, **tqdm_kwargs)
+    data = []
+    for args in func_args:
+        try:
+            data.append(func(args))
+        except:
+            pass
+
+    # data = process_map(func, func_args, **tqdm_kwargs)
 
     for res in data:
-        stats.collect(**res)
+        if res is not None:
+            stats.collect(**res)
 
     return stats
 
@@ -324,6 +334,16 @@ def main():
                     solver=solver,
                     options=options,
                 )
+            elif args.method == "two_stage_power_flow_disruption":
+                _, lines, _ = _two_stage(
+                    case,
+                    generators,
+                    partitioning_model=partitioning.power_flow_disruption,
+                    line_switching_alg=maximum_spanning_tree,
+                    solver=solver,
+                    options=options,
+                )
+
             elif args.method == "warm_start_maximum_congestion":
                 _, lines, _ = _single_stage_warm_start(
                     case,
@@ -340,6 +360,7 @@ def main():
 
             stats = Statistics(post_G_dcopf, case.name, args.method, args.gci_weight, k)
             cascading_failure(stats, post_G_dcopf, args.num_procs)
+            print(np.mean(stats.total_lost_load))
 
             path = res_dir / f"{case.name}-{args.method}-{args.gci_weight}-k{k}.csv"
             stats.to_csv(path)
